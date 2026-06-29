@@ -1,0 +1,30 @@
+# Dependencies (container installs its own)
+node_modules
+.npm
+
+# Next.js build output
+
+out
+
+# Environment files (never copy secrets)
+.env
+.env.local
+.env.development
+.env.production
+
+# Docker files (no need to copy these into container)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor files
+.vscode
+.idea

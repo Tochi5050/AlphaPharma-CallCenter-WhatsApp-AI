@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  
+}
+
+model Post{
+ id          String @id @default(cuid())
+ title       String 
+ description String 
+}

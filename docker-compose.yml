@@ -1,0 +1,12 @@
+services:
+  nextjs:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app # ← syncs your code changes live
+      - /app/node_modules # ← keeps container's node_modules
+      - /app/.next # ← keeps container's build cache
+    command: npm run dev
