@@ -1,5 +1,5 @@
 import Image from "next/image";
 
 export default function Home() {
-  return <div>New Project Started Again</div>;
+  return <div>New Project Started Again!</div>;
 }
