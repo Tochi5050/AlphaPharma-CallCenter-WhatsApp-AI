@@ -9,11 +9,17 @@ const PROCESSED_TTL_SECONDS = 60 * 60 * 24; // 24h is plenty for retry windows
 
 export async function isDuplicateMessage(messageId: string): Promise<boolean> {
   const key = `processed_message:${messageId}`;
-  // Redis SET with NX (only-if-not-exists) is atomic — no race condition between two near-simultaneous retries
-  const result = await redis.set(key, "1", {
-    nx: true,
-    ex: PROCESSED_TTL_SECONDS,
-  });
-  // If result is null, the key already existed — this is a duplicate
-  return result === null;
+  try {
+    const result = await redis.set(key, "1", {
+      nx: true,
+      ex: PROCESSED_TTL_SECONDS,
+    });
+    return result === null;
+  } catch (err) {
+    console.error(
+      "Dedup check failed, proceeding without dedup guarantee:",
+      err,
+    );
+    return false; // fail open — better to risk a rare duplicate than silently drop a real message
+  }
 }

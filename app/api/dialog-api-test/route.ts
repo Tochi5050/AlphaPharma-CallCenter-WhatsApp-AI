@@ -37,6 +37,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // const body = await request.json();
     console.log("body =>", body);
     const incomingMsg = parseIncomingMessage(body);
+    console.log("messageId:", incomingMsg!.messageId);
 
     if (!incomingMsg) {
       return NextResponse.json(
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       await sendWhatsAppReply(
         incomingMsg.from,
-        "Just give me a minute while I review this for you.",
+        "Hi, Am Kamsi. Kindly give me some few minutes to review this for you.",
       );
 
       return NextResponse.json({ message: "Handed off" }, { status: 200 });
