@@ -1,3 +1,4 @@
+import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
 import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
 import {
   appendMessage,
@@ -10,10 +11,13 @@ export type HandoffRecord = {
   id: string;
   waId: string;
   customerName?: string;
-  category: string; // e.g. "media_upload", later: "clinical_question", "refund_request"
+  category: string;
   reason: string;
-  mediaId?: string;
+  mediaId?: string; // raw WhatsApp reference — TEMPORARY, until resolveAndStoreMedia exists
+  mediaUrl?: string; // durable re-hosted URL — populated once resolveAndStoreMedia is built
+  mediaType?: string;
   originalText?: string;
+  conversationSnapshot: Array<{ role: string; content: string }>;
   timestamp: number;
   status: "pending" | "resolved";
 };
@@ -36,16 +40,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (incomingMsg.category === "handoff") {
-      const handoffRecord: Omit<HandoffRecord, "id" | "timestamp" | "status"> =
-        await createHandoff({
-          waId: incomingMsg.from,
-          customerName: incomingMsg.name,
-          category: "media_upload",
-          reason: `Received unsupported message type: ${incomingMsg.type}`,
-          mediaId: incomingMsg.mediaId,
-        });
+      const history = await getHistory(incomingMsg.from);
+
+      const handoffRecord = await createHandoff({
+        waId: incomingMsg.from,
+        customerName: incomingMsg.name,
+        category: "media_upload",
+        reason: `Received unsupported message type: ${incomingMsg.type}`,
+        mediaId: incomingMsg.mediaId,
+        mediaType: incomingMsg.type,
+        originalText: incomingMsg.caption,
+        conversationSnapshot: history,
+      });
       console.log("handOff =>", handoffRecord);
-      // TODO: sendWhatsAppReply(incomingMsg.from, "Just give me a minute while I review this for you.")
+      await sendWhatsAppReply(
+        incomingMsg.from,
+        "Just give me a minute while I review this for you.",
+      );
 
       return NextResponse.json({ message: "Handed off" }, { status: 200 });
     }
