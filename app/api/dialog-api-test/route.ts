@@ -5,6 +5,7 @@ import {
   getHistory,
   createHandoff,
 } from "@/app/utils/Redis/RedisSetup";
+import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { NextRequest, NextResponse } from "next/server";
 
 export type HandoffRecord = {
@@ -24,7 +25,16 @@ export type HandoffRecord = {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+    if (!rawBody) {
+      return NextResponse.json(
+        { message: "Empty body, ignored" },
+        { status: 200 },
+      );
+    }
+    const body = JSON.parse(rawBody);
+    // const body = await request.json();
+    console.log("body =>", body);
     const incomingMsg = parseIncomingMessage(body);
 
     if (!incomingMsg) {
@@ -42,17 +52,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (incomingMsg.category === "handoff") {
       const history = await getHistory(incomingMsg.from);
 
+      let mediaUrl: string | undefined;
+      let mediaType: string | undefined = incomingMsg.type;
+
+      if (incomingMsg.mediaId) {
+        try {
+          const resolved = await resolveAndStoreMedia(incomingMsg.mediaId);
+          mediaUrl = resolved.mediaUrl;
+          mediaType = resolved.mediaType;
+        } catch (err) {
+          console.error("Failed to resolve media, storing without it:", err);
+        }
+      }
+
       const handoffRecord = await createHandoff({
         waId: incomingMsg.from,
         customerName: incomingMsg.name,
         category: "media_upload",
         reason: `Received unsupported message type: ${incomingMsg.type}`,
         mediaId: incomingMsg.mediaId,
-        mediaType: incomingMsg.type,
+        mediaUrl,
+        mediaType,
         originalText: incomingMsg.caption,
         conversationSnapshot: history,
       });
+
       console.log("handOff =>", handoffRecord);
+
       await sendWhatsAppReply(
         incomingMsg.from,
         "Just give me a minute while I review this for you.",
@@ -62,11 +88,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // category === "text" — proceed to Layer 2 (Claude)
+    console.time("redis-append");
     await appendMessage(incomingMsg.from, {
       role: "user",
       content: incomingMsg.text!,
     });
+    console.timeEnd("redis-append");
+    console.time("redis-history");
     const history = await getHistory(incomingMsg.from);
+    console.timeEnd("redis-history");
     console.log("history =>", history);
 
     return NextResponse.json(

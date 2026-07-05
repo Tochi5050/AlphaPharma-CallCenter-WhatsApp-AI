@@ -7,7 +7,7 @@ const nextConfig: NextConfig & { allowedDevOrigins?: string[] } = {
   allowedDevOrigins: [
     "127.0.0.1",
     "localhost",
-    "987c-102-88-114-72.ngrok-free.app",
+    "https://a1ff-102-92-22-32.ngrok-free.app",
   ],
 
   webpack: (config) => {
