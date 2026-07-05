@@ -1,5 +1,6 @@
 import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
 import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
+import { isDuplicateMessage } from "@/app/utils/Redis/catchDuplicateResponses";
 import {
   appendMessage,
   getHistory,
@@ -40,6 +41,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!incomingMsg) {
       return NextResponse.json(
         { message: "No message found" },
+        { status: 200 },
+      );
+    }
+
+    const isDuplicate = await isDuplicateMessage(incomingMsg.messageId);
+    if (isDuplicate) {
+      console.log("Duplicate message, skipping:", incomingMsg.messageId);
+      return NextResponse.json(
+        { message: "Duplicate, already processed" },
         { status: 200 },
       );
     }
@@ -88,15 +98,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // category === "text" — proceed to Layer 2 (Claude)
-    console.time("redis-append");
+    // console.time("redis-append");
     await appendMessage(incomingMsg.from, {
       role: "user",
       content: incomingMsg.text!,
     });
-    console.timeEnd("redis-append");
-    console.time("redis-history");
+    // console.timeEnd("redis-append");
+    // console.time("redis-history");
     const history = await getHistory(incomingMsg.from);
-    console.timeEnd("redis-history");
+    // console.timeEnd("redis-history");
     console.log("history =>", history);
 
     return NextResponse.json(
