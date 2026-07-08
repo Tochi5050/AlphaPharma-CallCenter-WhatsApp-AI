@@ -34,7 +34,7 @@ export async function createHandoff(
     status: "pending",
   };
 
-  await redis.set(handoffKey(record.waId), record);
+  await redis.set(handoffKey(record.id), record);
   await redis.sadd(PENDING_QUEUE_KEY, record.id);
 
   return record;
