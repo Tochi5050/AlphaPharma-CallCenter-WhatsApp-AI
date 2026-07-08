@@ -15,11 +15,25 @@ export type HandoffRecord = {
   timestamp: number;
   status: "pending" | "resolved";
 };
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
+
+const FIRST_REPLY_TTL_SECONDS = 60 * 60 * 24;
+
+function repliedKey(waId: string) {
+  return `has_replied:${waId}`;
+}
+
+export async function isFirstReply(waId: string): Promise<boolean> {
+  const exists = await redis.get(repliedKey(waId));
+  return exists === null;
+}
+
+export async function markReplied(waId: string): Promise<void> {
+  await redis.set(repliedKey(waId), "1", { ex: FIRST_REPLY_TTL_SECONDS });
+}
 
 function handoffKey(id: string) {
   return `handoff:${id}`;

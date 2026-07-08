@@ -1,13 +1,23 @@
-import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
+// import { withGreeting } from "@/app/utils/aiGreeting/getTimeBasedGreeting";
+// import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
 import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
 import { isDuplicateMessage } from "@/app/utils/Redis/catchDuplicateResponses";
-import {
-  appendMessage,
-  getHistory,
-  createHandoff,
-} from "@/app/utils/Redis/RedisSetup";
-import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
+// import {
+//   appendMessage,
+//   getHistory,
+//   createHandoff,
+//   isFirstReply,
+//   markReplied,
+// } from "@/app/utils/Redis/RedisSetup";
+// import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
+import { Redis } from "@upstash/redis";
 import { NextRequest, NextResponse } from "next/server";
+import { Client } from "@upstash/qstash";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 export type HandoffRecord = {
   id: string;
@@ -24,101 +34,67 @@ export type HandoffRecord = {
   status: "pending" | "resolved";
 };
 
+const qstash = new Client({ token: process.env.QSTASH_TOKEN! });
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const rawBody = await request.text();
-    if (!rawBody) {
-      return NextResponse.json(
-        { message: "Empty body, ignored" },
-        { status: 200 },
-      );
-    }
-    const body = JSON.parse(rawBody);
-    // const body = await request.json();
-    console.log("body =>", body);
-    const incomingMsg = parseIncomingMessage(body);
-    console.log("messageId:", incomingMsg!.messageId);
-
-    if (!incomingMsg) {
-      return NextResponse.json(
-        { message: "No message found" },
-        { status: 200 },
-      );
-    }
-
-    const isDuplicate = await isDuplicateMessage(incomingMsg.messageId);
-    if (isDuplicate) {
-      console.log("Duplicate message, skipping:", incomingMsg.messageId);
-      return NextResponse.json(
-        { message: "Duplicate, already processed" },
-        { status: 200 },
-      );
-    }
-
-    if (incomingMsg.category === "ignore") {
-      // reactions and stickers — no reply, no record
-      return NextResponse.json({ message: "Ignored" }, { status: 200 });
-    }
-
-    if (incomingMsg.category === "handoff") {
-      const history = await getHistory(incomingMsg.from);
-
-      let mediaUrl: string | undefined;
-      let mediaType: string | undefined = incomingMsg.type;
-
-      if (incomingMsg.mediaId) {
-        try {
-          const resolved = await resolveAndStoreMedia(incomingMsg.mediaId);
-          mediaUrl = resolved.mediaUrl;
-          mediaType = resolved.mediaType;
-        } catch (err) {
-          console.error("Failed to resolve media, storing without it:", err);
-        }
-      }
-
-      const handoffRecord = await createHandoff({
-        waId: incomingMsg.from,
-        customerName: incomingMsg.name,
-        category: "media_upload",
-        reason: `Received unsupported message type: ${incomingMsg.type}`,
-        mediaId: incomingMsg.mediaId,
-        mediaUrl,
-        mediaType,
-        originalText: incomingMsg.caption,
-        conversationSnapshot: history,
-      });
-
-      console.log("handOff =>", handoffRecord);
-
-      await sendWhatsAppReply(
-        incomingMsg.from,
-        "Hi, Am Kamsi. Kindly give me some few minutes to review this for you.",
-      );
-
-      return NextResponse.json({ message: "Handed off" }, { status: 200 });
-    }
-
-    // category === "text" — proceed to Layer 2 (Claude)
-    // console.time("redis-append");
-    await appendMessage(incomingMsg.from, {
-      role: "user",
-      content: incomingMsg.text!,
-    });
-    // console.timeEnd("redis-append");
-    // console.time("redis-history");
-    const history = await getHistory(incomingMsg.from);
-    // console.timeEnd("redis-history");
-    console.log("history =>", history);
-
+  const rawBody = await request.text();
+  if (!rawBody) {
     return NextResponse.json(
-      { message: "Text received", history },
+      { message: "Empty body, ignored" },
       { status: 200 },
     );
-  } catch (error) {
-    console.error("Error handling message:", error);
+  }
+
+  let incomingMsg;
+  try {
+    const body = JSON.parse(rawBody);
+    incomingMsg = parseIncomingMessage(body);
+  } catch (err) {
+    console.error("Invalid JSON received:", rawBody);
     return NextResponse.json(
-      { error: "Invalid or missing JSON body" },
-      { status: 400 },
+      { message: "Invalid JSON, ignored" },
+      { status: 200 },
     );
   }
+
+  if (!incomingMsg) {
+    return NextResponse.json({ message: "No message found" }, { status: 200 });
+  }
+
+  const isDuplicate = await isDuplicateMessage(incomingMsg.messageId);
+  if (isDuplicate) {
+    console.log("Duplicate message, skipping:", incomingMsg.messageId);
+    return NextResponse.json(
+      { message: "Duplicate, already processed" },
+      { status: 200 },
+    );
+  }
+
+  if (incomingMsg.category === "ignore") {
+    return NextResponse.json({ message: "Ignored" }, { status: 200 });
+  }
+
+  try {
+    await qstash.publishJSON({
+      url: `${process.env.APP_BASE_URL}/api/process-message`,
+      body: incomingMsg,
+      retries: 3,
+    });
+  } catch (err) {
+    console.error(
+      "Failed to enqueue job, message may be lost:",
+      incomingMsg.messageId,
+      err,
+    );
+    await redis.lpush(
+      "failed_to_queue",
+      JSON.stringify({
+        incomingMsg,
+        error: String(err),
+        timestamp: Date.now(),
+      }),
+    );
+  }
+
+  return NextResponse.json({ message: "Queued" }, { status: 200 });
 }
