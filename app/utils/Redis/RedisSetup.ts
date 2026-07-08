@@ -5,10 +5,13 @@ export type HandoffRecord = {
   id: string;
   waId: string;
   customerName?: string;
-  category: string; // e.g. "media_upload", later: "clinical_question", "refund_request"
+  category: string;
   reason: string;
-  mediaId?: string;
+  mediaId?: string; // raw WhatsApp reference — TEMPORARY, until resolveAndStoreMedia exists
+  mediaUrl?: string; // durable re-hosted URL — populated once resolveAndStoreMedia is built
+  mediaType?: string;
   originalText?: string;
+  conversationSnapshot: Array<{ role: string; content: string }>;
   timestamp: number;
   status: "pending" | "resolved";
 };
@@ -20,6 +23,10 @@ const redis = new Redis({
 
 function handoffKey(id: string) {
   return `handoff:${id}`;
+}
+
+function customerHandoffsKey(waId: string) {
+  return `handoff_by_customer:${waId}`;
 }
 
 const PENDING_QUEUE_KEY = "handoff_queue:pending";
@@ -36,8 +43,22 @@ export async function createHandoff(
 
   await redis.set(handoffKey(record.id), record);
   await redis.sadd(PENDING_QUEUE_KEY, record.id);
+  await redis.sadd(customerHandoffsKey(record.waId), record.id);
 
   return record;
+}
+
+export async function getPendingHandoffsForCustomer(
+  waId: string,
+): Promise<HandoffRecord[]> {
+  const ids = await redis.smembers(customerHandoffsKey(waId));
+  if (!ids || ids.length === 0) return [];
+  const records = await Promise.all(
+    ids.map((id) => redis.get<HandoffRecord>(handoffKey(id))),
+  );
+  return records.filter(
+    (r): r is HandoffRecord => r !== null && r.status === "pending",
+  );
 }
 
 export async function getPendingHandoffs(): Promise<HandoffRecord[]> {
