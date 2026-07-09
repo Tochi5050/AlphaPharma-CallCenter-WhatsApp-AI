@@ -8,7 +8,7 @@ export async function sendWhatsAppReply(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "D360-API-KEY": process.env.D360_API_KEY!,
+      "D360-API-KEY": process.env.D460_API_KEYS!,
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
