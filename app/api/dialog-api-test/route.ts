@@ -35,7 +35,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   let body;
   try {
-    const body = JSON.parse(rawBody);
+    body = JSON.parse(rawBody);
 
     console.log(
       "[FAST ROUTE] messageId:",
