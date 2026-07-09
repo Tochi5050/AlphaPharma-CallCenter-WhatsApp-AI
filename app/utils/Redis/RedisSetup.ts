@@ -31,6 +31,19 @@ export async function isFirstReply(waId: string): Promise<boolean> {
   return exists === null;
 }
 
+export async function isMessageFullyProcessed(
+  messageId: string,
+): Promise<boolean> {
+  const result = await redis.get(`processed_final:${messageId}`);
+  return result !== null;
+}
+
+export async function markMessageFullyProcessed(
+  messageId: string,
+): Promise<void> {
+  await redis.set(`processed_final:${messageId}`, "1", { ex: 60 * 60 * 24 });
+}
+
 export async function markReplied(waId: string): Promise<void> {
   await redis.set(repliedKey(waId), "1", { ex: FIRST_REPLY_TTL_SECONDS });
 }

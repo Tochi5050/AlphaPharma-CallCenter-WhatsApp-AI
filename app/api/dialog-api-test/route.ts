@@ -1,15 +1,3 @@
-// import { withGreeting } from "@/app/utils/aiGreeting/getTimeBasedGreeting";
-// import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
-import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
-import { isDuplicateMessage } from "@/app/utils/Redis/catchDuplicateResponses";
-// import {
-//   appendMessage,
-//   getHistory,
-//   createHandoff,
-//   isFirstReply,
-//   markReplied,
-// } from "@/app/utils/Redis/RedisSetup";
-// import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { Redis } from "@upstash/redis";
 import { NextRequest, NextResponse } from "next/server";
 import { Client } from "@upstash/qstash";
@@ -45,10 +33,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let incomingMsg;
+  let body;
   try {
     const body = JSON.parse(rawBody);
-    incomingMsg = parseIncomingMessage(body);
+
+    console.log(
+      "[FAST ROUTE] messageId:",
+      body!.messageId,
+      "at",
+      new Date().toISOString(),
+    );
   } catch (err) {
     console.error("Invalid JSON received:", rawBody);
     return NextResponse.json(
@@ -57,43 +51,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!incomingMsg) {
-    return NextResponse.json({ message: "No message found" }, { status: 200 });
-  }
-
-  const isDuplicate = await isDuplicateMessage(incomingMsg.messageId);
-  if (isDuplicate) {
-    console.log("Duplicate message, skipping:", incomingMsg.messageId);
-    return NextResponse.json(
-      { message: "Duplicate, already processed" },
-      { status: 200 },
-    );
-  }
-
-  if (incomingMsg.category === "ignore") {
-    return NextResponse.json({ message: "Ignored" }, { status: 200 });
-  }
-
   try {
     await qstash.publishJSON({
       url: `${process.env.APP_BASE_URL}/api/process-message`,
-      body: incomingMsg,
+      body,
       retries: 3,
     });
   } catch (err) {
-    console.error(
-      "Failed to enqueue job, message may be lost:",
-      incomingMsg.messageId,
-      err,
-    );
-    await redis.lpush(
-      "failed_to_queue",
-      JSON.stringify({
-        incomingMsg,
-        error: String(err),
-        timestamp: Date.now(),
-      }),
-    );
+    console.error("Failed to enqueue job, message may be lost:", err);
+    try {
+      await redis.lpush(
+        "failed_to_queue",
+        JSON.stringify({ body, error: String(err), timestamp: Date.now() }),
+      );
+    } catch (redisErr) {
+      console.error(
+        "Redis fallback also failed, message lost with no trail:",
+        redisErr,
+      );
+    }
   }
 
   return NextResponse.json({ message: "Queued" }, { status: 200 });

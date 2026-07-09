@@ -1,18 +1,37 @@
 import { withGreeting } from "@/app/utils/aiGreeting/getTimeBasedGreeting";
 import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
+import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
 import {
   appendMessage,
   getHistory,
   createHandoff,
   isFirstReply,
   markReplied,
+  isMessageFullyProcessed,
+  markMessageFullyProcessed,
 } from "@/app/utils/Redis/RedisSetup";
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { NextRequest, NextResponse } from "next/server";
 
 async function handler(request: NextRequest): Promise<NextResponse> {
-  const incomingMsg = await request.json();
+  const body = await request.json();
+  const incomingMsg = parseIncomingMessage(body);
+
+  if (!incomingMsg) {
+    return NextResponse.json({ message: "No message found" }, { status: 200 });
+  }
+
+  const alreadyProcessed = await isMessageFullyProcessed(incomingMsg.messageId);
+  if (alreadyProcessed) {
+    console.log("Already processed, skipping:", incomingMsg.messageId);
+    return NextResponse.json({ message: "Already processed" }, { status: 200 });
+  }
+
+  if (incomingMsg.category === "ignore") {
+    await markMessageFullyProcessed(incomingMsg.messageId);
+    return NextResponse.json({ message: "Ignored" }, { status: 200 });
+  }
 
   try {
     if (incomingMsg.category === "handoff") {
@@ -54,11 +73,11 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         canGreet ? withGreeting(replyText) : replyText,
       );
       await markReplied(incomingMsg.from);
+      await markMessageFullyProcessed(incomingMsg.messageId);
 
       return NextResponse.json({ message: "Handed off" }, { status: 200 });
     }
 
-    // category === "text" — Layer 2 (Claude) plugs in here later
     await appendMessage(incomingMsg.from, {
       role: "user",
       content: incomingMsg.text!,
@@ -66,15 +85,14 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     const history = await getHistory(incomingMsg.from);
     console.log("history =>", history);
 
+    await markMessageFullyProcessed(incomingMsg.messageId);
+
     return NextResponse.json(
       { message: "Text received", history },
       { status: 200 },
     );
   } catch (error) {
     console.error("Error processing message:", error);
-    // Unlike the WhatsApp-facing route, returning a real error status HERE is correct —
-    // QStash's own retry (fast, bounded, under our control) is the good kind of retry,
-    // not WhatsApp's slow multi-day backoff. This is the one place a non-200 is intentional.
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }
 }
