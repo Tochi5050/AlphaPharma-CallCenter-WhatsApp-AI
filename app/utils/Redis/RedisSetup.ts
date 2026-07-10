@@ -1,5 +1,9 @@
-// lib/conversationStore.js
 import { Redis } from "@upstash/redis";
+
+export const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 export type HandoffRecord = {
   id: string;
@@ -7,46 +11,14 @@ export type HandoffRecord = {
   customerName?: string;
   category: string;
   reason: string;
-  mediaId?: string; // raw WhatsApp reference — TEMPORARY, until resolveAndStoreMedia exists
-  mediaUrl?: string; // durable re-hosted URL — populated once resolveAndStoreMedia is built
+  mediaId?: string;
+  mediaUrl?: string;
   mediaType?: string;
   originalText?: string;
   conversationSnapshot: Array<{ role: string; content: string }>;
   timestamp: number;
   status: "pending" | "resolved";
 };
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
-
-const FIRST_REPLY_TTL_SECONDS = 60 * 60 * 24;
-
-function repliedKey(waId: string) {
-  return `has_replied:${waId}`;
-}
-
-export async function isFirstReply(waId: string): Promise<boolean> {
-  const exists = await redis.get(repliedKey(waId));
-  return exists === null;
-}
-
-export async function isMessageFullyProcessed(
-  messageId: string,
-): Promise<boolean> {
-  const result = await redis.get(`processed_final:${messageId}`);
-  return result !== null;
-}
-
-export async function markMessageFullyProcessed(
-  messageId: string,
-): Promise<void> {
-  await redis.set(`processed_final:${messageId}`, "1", { ex: 60 * 60 * 24 });
-}
-
-export async function markReplied(waId: string): Promise<void> {
-  await redis.set(repliedKey(waId), "1", { ex: FIRST_REPLY_TTL_SECONDS });
-}
 
 function handoffKey(id: string) {
   return `handoff:${id}`;
@@ -97,8 +69,16 @@ export async function getPendingHandoffs(): Promise<HandoffRecord[]> {
   return records.filter((r): r is HandoffRecord => r !== null);
 }
 
-const HISTORY_LIMIT = 20; // max messages kept per customer
-const TTL_SECONDS = 60 * 60 * 24 * 3; // auto-expire after 3 days idle
+export function getOldestPendingHandoff(
+  records: HandoffRecord[],
+): HandoffRecord {
+  return records.reduce((oldest, r) =>
+    r.timestamp < oldest.timestamp ? r : oldest,
+  );
+}
+
+const HISTORY_LIMIT = 20;
+const TTL_SECONDS = 60 * 60 * 24 * 3;
 
 function key(waId: string | number) {
   return `conversation:${waId}`;
@@ -117,17 +97,45 @@ export async function appendMessage(
   waId: string | number,
   message: { role: string; content: string },
 ) {
-  const history: Array<{ role: string; content: string }> =
-    await getHistory(waId);
+  const history = await getHistory(waId);
   history.push(message);
-
-  // Keep only the most recent N messages
   const trimmed = history.slice(-HISTORY_LIMIT);
-
   await redis.set(key(waId), trimmed, { ex: TTL_SECONDS });
   return trimmed;
 }
 
 export async function clearHistory(waId: string | number) {
   await redis.del(key(waId));
+}
+
+const FIRST_REPLY_TTL_SECONDS = 60 * 60 * 24 * 3;
+
+function repliedKey(waId: string) {
+  return `has_replied:${waId}`;
+}
+
+export async function isFirstReply(waId: string): Promise<boolean> {
+  const exists = await redis.get(repliedKey(waId));
+  return exists === null;
+}
+
+export async function markReplied(waId: string): Promise<void> {
+  await redis.set(repliedKey(waId), "1", { ex: FIRST_REPLY_TTL_SECONDS });
+}
+
+const PROCESSED_FINAL_TTL_SECONDS = 60 * 60 * 24;
+
+export async function isMessageFullyProcessed(
+  messageId: string,
+): Promise<boolean> {
+  const result = await redis.get(`processed_final:${messageId}`);
+  return result !== null;
+}
+
+export async function markMessageFullyProcessed(
+  messageId: string,
+): Promise<void> {
+  await redis.set(`processed_final:${messageId}`, "1", {
+    ex: PROCESSED_FINAL_TTL_SECONDS,
+  });
 }

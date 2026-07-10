@@ -1,6 +1,7 @@
 import { withGreeting } from "@/app/utils/aiGreeting/getTimeBasedGreeting";
 import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
 import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
+import { lookupCustomerName } from "@/app/utils/erpUtils/erpClient/erpClient";
 import {
   appendMessage,
   getHistory,
@@ -9,10 +10,16 @@ import {
   markReplied,
   isMessageFullyProcessed,
   markMessageFullyProcessed,
+  getPendingHandoffsForCustomer,
+  getOldestPendingHandoff,
 } from "@/app/utils/Redis/RedisSetup";
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { NextRequest, NextResponse } from "next/server";
+
+const HOLDING_MESSAGE =
+  "Still with our pharmacist on that — they'll be with you shortly!";
+const HANDOFF_EXPIRY_HOURS = 24;
 
 async function handler(request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
@@ -36,6 +43,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
   try {
     if (incomingMsg.category === "handoff") {
       const history = await getHistory(incomingMsg.from);
+      const customerName = await lookupCustomerName(incomingMsg.from);
 
       let mediaUrl: string | undefined;
       let mediaType: string | undefined = incomingMsg.type;
@@ -52,7 +60,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
       const handoffRecord = await createHandoff({
         waId: incomingMsg.from,
-        customerName: incomingMsg.name,
+        customerName: customerName ?? incomingMsg.name,
         category: "media_upload",
         reason: `Received unsupported message type: ${incomingMsg.type}`,
         mediaId: incomingMsg.mediaId,
@@ -70,7 +78,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
       await sendWhatsAppReply(
         incomingMsg.from,
-        canGreet ? withGreeting(replyText) : replyText,
+        canGreet ? withGreeting(replyText, customerName) : replyText,
       );
       await markReplied(incomingMsg.from);
       await markMessageFullyProcessed(incomingMsg.messageId);
@@ -78,10 +86,34 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ message: "Handed off" }, { status: 200 });
     }
 
+    // category === "text"
     await appendMessage(incomingMsg.from, {
       role: "user",
       content: incomingMsg.text!,
     });
+
+    const pending = await getPendingHandoffsForCustomer(incomingMsg.from);
+
+    if (pending.length > 0) {
+      const oldest = getOldestPendingHandoff(pending);
+      const elapsedHours = (Date.now() - oldest.timestamp) / (1000 * 60 * 60);
+      const customerName = await lookupCustomerName(incomingMsg.from);
+
+      const reply =
+        elapsedHours < HANDOFF_EXPIRY_HOURS
+          ? HOLDING_MESSAGE
+          : withGreeting(HOLDING_MESSAGE, customerName);
+
+      await sendWhatsAppReply(incomingMsg.from, reply);
+      await markMessageFullyProcessed(incomingMsg.messageId);
+
+      return NextResponse.json(
+        { message: "Still pending handoff" },
+        { status: 200 },
+      );
+    }
+
+    // No pending handoff — Layer 2 (Claude) plugs in here next
     const history = await getHistory(incomingMsg.from);
     console.log("history =>", history);
 

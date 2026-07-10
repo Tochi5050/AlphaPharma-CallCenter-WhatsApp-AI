@@ -12,6 +12,12 @@ export function getTimeBasedGreeting(): string {
   return "Good evening";
 }
 
-export function withGreeting(message: string, name: string = "Kamsi"): string {
-  return `${getTimeBasedGreeting()}, I'm ${name}. ${message}`;
+export function withGreeting(
+  message: string,
+  customerName?: string,
+  botName: string = "Kamsi",
+): string {
+  const greeting = getTimeBasedGreeting();
+  const nameInsert = customerName ? `, ${customerName}` : "";
+  return `${greeting}${nameInsert}! I'm ${botName}. ${message}`;
 }
