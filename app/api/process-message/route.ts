@@ -1,7 +1,11 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { withGreeting } from "@/app/utils/aiGreeting/getTimeBasedGreeting";
 import { sendWhatsAppReply } from "@/app/utils/handOffNonText/sendWhatsAppReply";
 import { parseIncomingMessage } from "@/app/utils/ParseIncomingMessages/incomingMsg";
-import { lookupCustomerName } from "@/app/utils/erpUtils/erpClient/erpClient";
+import { lookupCustomerByPhone } from "@/app/utils/erpUtils/erpClient/erpClient";
+import { buildSystemPrompt } from "@/app/utils/system_prompt/systemPrompt";
+import { erpTools } from "@/app/utils/erpUtils/erpToolSchema/toolSchema";
+import { executeErpTool } from "@/app/utils/erpUtils/erpTools/erpToolExecutor";
 import {
   appendMessage,
   getHistory,
@@ -12,10 +16,13 @@ import {
   markMessageFullyProcessed,
   getPendingHandoffsForCustomer,
   getOldestPendingHandoff,
+  getAndClearAwaitingPayment,
 } from "@/app/utils/Redis/RedisSetup";
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { NextRequest, NextResponse } from "next/server";
+
+const anthropic = new Anthropic();
 
 const HOLDING_MESSAGE =
   "Still with our pharmacist on that — they'll be with you shortly!";
@@ -43,7 +50,8 @@ async function handler(request: NextRequest): Promise<NextResponse> {
   try {
     if (incomingMsg.category === "handoff") {
       const history = await getHistory(incomingMsg.from);
-      const customerName = await lookupCustomerName(incomingMsg.from);
+      const customer = await lookupCustomerByPhone(incomingMsg.from);
+      const pendingOrder = await getAndClearAwaitingPayment(incomingMsg.from);
 
       let mediaUrl: string | undefined;
       let mediaType: string | undefined = incomingMsg.type;
@@ -60,9 +68,13 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
       const handoffRecord = await createHandoff({
         waId: incomingMsg.from,
-        customerName: customerName ?? incomingMsg.name,
-        category: "media_upload",
-        reason: `Received unsupported message type: ${incomingMsg.type}`,
+        customerName: customer.customerName,
+        category: pendingOrder ? "payment_proof" : "media_upload",
+        reason: pendingOrder
+          ? `Payment proof received for order totaling ₦${pendingOrder.total}. Items: ${pendingOrder.items
+              .map((i) => `${i.qty} ${i.uom} ${i.item_name}`)
+              .join(", ")}`
+          : `Received unsupported message type: ${incomingMsg.type}`,
         mediaId: incomingMsg.mediaId,
         mediaUrl,
         mediaType,
@@ -73,12 +85,13 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       console.log("handOff =>", handoffRecord);
 
       const canGreet = await isFirstReply(incomingMsg.from);
-      const replyText =
-        "Just give me a minute while I connect you with one of our pharmacists.";
+      const replyText = pendingOrder
+        ? "Awaiting pharmacist's confirmation of your payment..."
+        : "Just give me a minute while I connect you with one of our pharmacists.";
 
       await sendWhatsAppReply(
         incomingMsg.from,
-        canGreet ? withGreeting(replyText, customerName) : replyText,
+        canGreet ? withGreeting(replyText, customer.customerName) : replyText,
       );
       await markReplied(incomingMsg.from);
       await markMessageFullyProcessed(incomingMsg.messageId);
@@ -97,12 +110,12 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     if (pending.length > 0) {
       const oldest = getOldestPendingHandoff(pending);
       const elapsedHours = (Date.now() - oldest.timestamp) / (1000 * 60 * 60);
-      const customerName = await lookupCustomerName(incomingMsg.from);
+      const customer = await lookupCustomerByPhone(incomingMsg.from);
 
       const reply =
         elapsedHours < HANDOFF_EXPIRY_HOURS
           ? HOLDING_MESSAGE
-          : withGreeting(HOLDING_MESSAGE, customerName);
+          : withGreeting(HOLDING_MESSAGE, customer.customerName);
 
       await sendWhatsAppReply(incomingMsg.from, reply);
       await markMessageFullyProcessed(incomingMsg.messageId);
@@ -113,14 +126,93 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // No pending handoff — Layer 2 (Claude) plugs in here next
-    const history = await getHistory(incomingMsg.from);
-    console.log("history =>", history);
+    // No pending handoff — Layer 2 (Claude)
+    const conversationSnapshot = await getHistory(incomingMsg.from);
+    const messages: Anthropic.Messages.MessageParam[] =
+      conversationSnapshot.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
+
+    let response: Anthropic.Messages.Message = await anthropic.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 1024,
+      system: buildSystemPrompt(),
+      tools: erpTools,
+      messages,
+    });
+
+    let handoffTriggered = false;
+
+    while (response.stop_reason === "tool_use") {
+      const toolUseBlocks: Anthropic.Messages.ToolUseBlock[] =
+        response.content.filter(
+          (c): c is Anthropic.Messages.ToolUseBlock => c.type === "tool_use",
+        );
+
+      messages.push({ role: "assistant", content: response.content });
+
+      const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = [];
+
+      for (const toolUse of toolUseBlocks) {
+        const result = await executeErpTool(
+          toolUse.name,
+          toolUse.input as Record<string, unknown>,
+          { waId: incomingMsg.from, history: conversationSnapshot },
+        );
+
+        if (
+          typeof result === "object" &&
+          result !== null &&
+          "handedOff" in result
+        ) {
+          handoffTriggered = true;
+        }
+
+        toolResultBlocks.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: JSON.stringify(result),
+        });
+      }
+
+      messages.push({ role: "user", content: toolResultBlocks });
+
+      response = await anthropic.messages.create({
+        model: "claude-sonnet-5",
+        max_tokens: 1024,
+        system: buildSystemPrompt(),
+        tools: erpTools,
+        messages,
+      });
+    }
+
+    const finalTextBlock = response.content.find(
+      (c): c is Anthropic.Messages.TextBlock => c.type === "text",
+    );
+    const finalText = finalTextBlock?.text ?? "";
+
+    if (finalText) {
+      await appendMessage(incomingMsg.from, {
+        role: "assistant",
+        content: finalText,
+      });
+    }
+
+    if (!handoffTriggered && finalText) {
+      const customer = await lookupCustomerByPhone(incomingMsg.from);
+      const canGreet = await isFirstReply(incomingMsg.from);
+      await sendWhatsAppReply(
+        incomingMsg.from,
+        canGreet ? withGreeting(finalText, customer.customerName) : finalText,
+      );
+      await markReplied(incomingMsg.from);
+    }
 
     await markMessageFullyProcessed(incomingMsg.messageId);
 
     return NextResponse.json(
-      { message: "Text received", history },
+      { message: "Text handled", finalText },
       { status: 200 },
     );
   } catch (error) {

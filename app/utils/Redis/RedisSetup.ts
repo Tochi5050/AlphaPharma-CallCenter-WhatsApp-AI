@@ -20,6 +20,42 @@ export type HandoffRecord = {
   status: "pending" | "resolved";
 };
 
+export type PendingOrderItem = {
+  item_name: string;
+  uom: string;
+  qty: number;
+  unit_price: number;
+};
+
+export type PendingOrder = {
+  items: PendingOrderItem[];
+  total: number;
+  createdAt: number;
+};
+
+const AWAITING_PAYMENT_TTL = 60 * 60 * 48; // 48h
+
+function awaitingPaymentKey(waId: string) {
+  return `awaiting_payment:${waId}`;
+}
+
+export async function setAwaitingPayment(
+  waId: string,
+  order: PendingOrder,
+): Promise<void> {
+  await redis.set(awaitingPaymentKey(waId), order, {
+    ex: AWAITING_PAYMENT_TTL,
+  });
+}
+
+export async function getAndClearAwaitingPayment(
+  waId: string,
+): Promise<PendingOrder | null> {
+  const order = await redis.get<PendingOrder>(awaitingPaymentKey(waId));
+  if (order) await redis.del(awaitingPaymentKey(waId));
+  return order;
+}
+
 function handoffKey(id: string) {
   return `handoff:${id}`;
 }

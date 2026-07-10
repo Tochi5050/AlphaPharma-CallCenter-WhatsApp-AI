@@ -19,5 +19,5 @@ export function withGreeting(
 ): string {
   const greeting = getTimeBasedGreeting();
   const nameInsert = customerName ? `, ${customerName}` : "";
-  return `${greeting}${nameInsert}! I'm ${botName}. ${message}`;
+  return `${greeting}${nameInsert}. I'm ${botName}. ${message}`;
 }
