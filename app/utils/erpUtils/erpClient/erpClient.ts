@@ -21,6 +21,8 @@ export type ItemBrandMatch = {
   available_uoms: string[];
   stock_qty: number;
   is_medicine: boolean;
+  is_controlled: boolean;
+  discount_applied?: boolean;
 };
 
 export type ItemLookupResult =
@@ -41,6 +43,15 @@ export type ItemLookupResult =
 //       stock_qty: number;
 //       is_medicine: boolean;
 //     };
+
+const DISCOUNT_ELIGIBLE_GROUPS = [
+  "MEDICINE AND TREATMENT (PRESCRI",
+  "MEDICINE AND TREATMENT (OTC)",
+  "VITAMIN AND SUPPLEMENTS",
+  "SUPPLEMENTS",
+];
+
+const CONTROLLED_SUBSTANCE_GROUP = "CONTROLLED SUBSTANCES";
 
 export async function lookupCustomerByPhone(
   waId: string,
@@ -193,7 +204,8 @@ export async function checkItemStockAndPrice(
           base_uom: baseUom,
           available_uoms: uomTable.map((u) => u.uom),
           stock_qty: stockData.message ?? 0,
-          is_medicine: item.item_group === DISCOUNT_ELIGIBLE_GROUP,
+          is_medicine: DISCOUNT_ELIGIBLE_GROUPS.includes(item.item_group),
+          is_controlled: item.item_group === CONTROLLED_SUBSTANCE_GROUP,
         };
       },
     ),

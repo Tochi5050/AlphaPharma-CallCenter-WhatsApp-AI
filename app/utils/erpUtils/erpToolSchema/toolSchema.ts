@@ -35,6 +35,7 @@ export const erpTools: Anthropic.Tool[] = [
             "refund_request",
             "drug_interaction",
             "special_order",
+            "controlled_substance",
             "other",
           ],
           description: "The type of request requiring pharmacist attention",
