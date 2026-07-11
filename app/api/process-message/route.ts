@@ -28,6 +28,8 @@ const HOLDING_MESSAGE =
   "Still with our pharmacist on that — they'll be with you shortly!";
 const HANDOFF_EXPIRY_HOURS = 24;
 
+export const maxDuration = 30;
+
 async function handler(request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
   const incomingMsg = parseIncomingMessage(body);

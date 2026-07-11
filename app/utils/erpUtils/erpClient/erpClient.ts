@@ -66,6 +66,14 @@ export async function lookupCustomerByPhone(
   }
 }
 
+interface ErpItemSearchResult {
+  name: string;
+  item_code: string;
+  item_name: string;
+  stock_uom: string;
+  item_group: string;
+}
+
 export async function checkItemStockAndPrice(
   itemName: string,
   requestedUom?: string,
@@ -90,7 +98,7 @@ export async function checkItemStockAndPrice(
   const searchRes = await fetch(searchUrl, {
     headers: { Authorization: AUTH_HEADER },
   });
-  const searchData = await searchRes.json();
+  const searchData: { data?: ErpItemSearchResult[] } = await searchRes.json();
 
   console.log(
     `[ERP SEARCH] "${itemName}" ->`,
@@ -101,87 +109,94 @@ export async function checkItemStockAndPrice(
     return { found: false, message: `No item matching "${itemName}" found.` };
   }
 
-  const matches: ItemBrandMatch[] = [];
+  const results = await Promise.all(
+    searchData.data.map(
+      async (item: ErpItemSearchResult): Promise<ItemBrandMatch | null> => {
+        const baseUom = item.stock_uom;
 
-  for (const item of searchData.data) {
-    const baseUom = item.stock_uom;
+        const priceUrl = new URL(`${ERP_BASE}/api/resource/Item Price`);
+        priceUrl.searchParams.set(
+          "filters",
+          JSON.stringify([
+            ["item_code", "=", item.item_code],
+            ["price_list", "=", PRICE_LIST],
+            ["selling", "=", 1],
+            ["uom", "=", baseUom],
+          ]),
+        );
+        priceUrl.searchParams.set(
+          "fields",
+          JSON.stringify(["price_list_rate"]),
+        );
+        priceUrl.searchParams.set("limit_page_length", "1");
 
-    const priceUrl = new URL(`${ERP_BASE}/api/resource/Item Price`);
-    priceUrl.searchParams.set(
-      "filters",
-      JSON.stringify([
-        ["item_code", "=", item.item_code],
-        ["price_list", "=", PRICE_LIST],
-        ["selling", "=", 1],
-        ["uom", "=", baseUom],
-      ]),
-    );
-    priceUrl.searchParams.set("fields", JSON.stringify(["price_list_rate"]));
-    priceUrl.searchParams.set("limit_page_length", "1");
+        const fullItemUrl = `${ERP_BASE}/api/resource/Item/${item.item_code}`;
 
-    const priceRes = await fetch(priceUrl, {
-      headers: { Authorization: AUTH_HEADER },
-    });
-    const priceData = await priceRes.json();
-    const baseRate = priceData.data?.[0]?.price_list_rate;
+        const stockUrl = new URL(
+          `${ERP_BASE}/api/method/erpnext.stock.utils.get_stock_balance`,
+        );
+        stockUrl.searchParams.set("item_code", item.item_code);
+        stockUrl.searchParams.set("warehouse", WAREHOUSE);
 
-    console.log(
-      `[ERP PRICE] ${item.item_code} (uom: ${baseUom}) ->`,
-      JSON.stringify(priceData.data ?? priceData),
-    );
+        const [priceRes, fullItemRes, stockRes] = await Promise.all([
+          fetch(priceUrl, { headers: { Authorization: AUTH_HEADER } }),
+          fetch(fullItemUrl, { headers: { Authorization: AUTH_HEADER } }),
+          fetch(stockUrl, { headers: { Authorization: AUTH_HEADER } }),
+        ]);
 
-    if (baseRate === undefined) {
-      console.log(
-        `[ERP SKIP] ${item.item_code} skipped - no matching Item Price entry`,
-      );
-      continue;
-    }
+        const priceData: { data?: Array<{ price_list_rate: number }> } =
+          await priceRes.json();
+        const fullItem: {
+          data?: { uoms?: Array<{ uom: string; conversion_factor: number }> };
+        } = await fullItemRes.json();
+        const stockData: { message?: number } = await stockRes.json();
 
-    const fullItemRes = await fetch(
-      `${ERP_BASE}/api/resource/Item/${item.item_code}`,
-      {
-        headers: { Authorization: AUTH_HEADER },
+        const baseRate = priceData.data?.[0]?.price_list_rate;
+
+        console.log(
+          `[ERP PRICE] ${item.item_code} (uom: ${baseUom}) ->`,
+          JSON.stringify(priceData.data ?? priceData),
+        );
+
+        if (baseRate === undefined) {
+          console.log(
+            `[ERP SKIP] ${item.item_code} skipped - no matching Item Price entry`,
+          );
+          return null;
+        }
+
+        const uomTable: Array<{ uom: string; conversion_factor: number }> =
+          fullItem.data?.uoms ?? [];
+
+        let finalUom = baseUom;
+        let quantityMultiplier = 1;
+
+        if (requestedUom) {
+          const match = uomTable.find(
+            (u) => u.uom.toLowerCase() === requestedUom.toLowerCase(),
+          );
+          if (match) {
+            finalUom = match.uom;
+            quantityMultiplier = match.conversion_factor;
+          }
+        }
+
+        return {
+          item_name: item.item_name,
+          item_code: item.item_code,
+          uom: finalUom,
+          price: baseRate * quantityMultiplier,
+          base_price: baseRate,
+          base_uom: baseUom,
+          available_uoms: uomTable.map((u) => u.uom),
+          stock_qty: stockData.message ?? 0,
+          is_medicine: item.item_group === DISCOUNT_ELIGIBLE_GROUP,
+        };
       },
-    );
-    const fullItem = await fullItemRes.json();
-    const uomTable: Array<{ uom: string; conversion_factor: number }> =
-      fullItem.data?.uoms ?? [];
+    ),
+  );
 
-    let finalUom = baseUom;
-    let quantityMultiplier = 1;
-
-    if (requestedUom) {
-      const match = uomTable.find(
-        (u) => u.uom.toLowerCase() === requestedUom.toLowerCase(),
-      );
-      if (match) {
-        finalUom = match.uom;
-        quantityMultiplier = match.conversion_factor;
-      }
-    }
-
-    const stockUrl = new URL(
-      `${ERP_BASE}/api/method/erpnext.stock.utils.get_stock_balance`,
-    );
-    stockUrl.searchParams.set("item_code", item.item_code);
-    stockUrl.searchParams.set("warehouse", WAREHOUSE);
-    const stockRes = await fetch(stockUrl, {
-      headers: { Authorization: AUTH_HEADER },
-    });
-    const stockData = await stockRes.json();
-
-    matches.push({
-      item_name: item.item_name,
-      item_code: item.item_code,
-      uom: finalUom,
-      price: baseRate * quantityMultiplier,
-      base_price: baseRate,
-      base_uom: baseUom,
-      available_uoms: uomTable.map((u) => u.uom),
-      stock_qty: stockData.message ?? 0,
-      is_medicine: item.item_group === DISCOUNT_ELIGIBLE_GROUP,
-    });
-  }
+  const matches = results.filter((m): m is ItemBrandMatch => m !== null);
 
   console.log(
     `[ERP RESULT] "${itemName}" -> ${matches.length} sellable match(es)`,
