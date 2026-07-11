@@ -66,8 +66,17 @@ export async function executeErpTool(
     return { found: true, matches: matchesWithDiscount };
   }
 
+  const HANDOFF_REPLIES: Record<string, string> = {
+    special_order:
+      "The requested medication is not available at the moment. Kindly give us a few hours while we get back to you on how soon we can make it available. We will get back to you shortly.",
+    default:
+      "Just give me a minute while I connect you with one of our pharmacists.",
+  };
+
   if (toolName === "hand_off_to_pharmacist") {
     const input = toolInput as HandOffToolInput;
+    console.log("[HANDOFF] Claude triggered hand-off:", JSON.stringify(input));
+
     const customer = await lookupCustomerByPhone(context.waId);
 
     const handoffRecord = await createHandoff({
@@ -78,15 +87,19 @@ export async function executeErpTool(
       conversationSnapshot: context.history,
     });
 
+    console.log("[HANDOFF] record created:", handoffRecord.id);
+
     const canGreet = await isFirstReply(context.waId);
     const replyText =
-      "Just give me a minute while I connect you with one of our pharmacists.";
+      HANDOFF_REPLIES[input.category] ?? HANDOFF_REPLIES.default;
 
     await sendWhatsAppReply(
       context.waId,
       canGreet ? withGreeting(replyText, customer.customerName) : replyText,
     );
     await markReplied(context.waId);
+
+    console.log("[HANDOFF] reply sent to customer");
 
     return { handedOff: true, handoffId: handoffRecord.id };
   }
