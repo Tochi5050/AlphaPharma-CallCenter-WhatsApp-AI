@@ -75,6 +75,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
               .map((i) => `${i.qty} ${i.uom} ${i.item_name}`)
               .join(", ")}`
           : `Received unsupported message type: ${incomingMsg.type}`,
+        orderDetails: pendingOrder ?? undefined,
         mediaId: incomingMsg.mediaId,
         mediaUrl,
         mediaType,

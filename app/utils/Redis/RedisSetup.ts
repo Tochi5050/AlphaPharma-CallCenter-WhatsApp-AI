@@ -11,6 +11,7 @@ export type HandoffRecord = {
   customerName?: string;
   category: string;
   reason: string;
+  orderDetails?: PendingOrder;
   mediaId?: string;
   mediaUrl?: string;
   mediaType?: string;
@@ -18,6 +19,7 @@ export type HandoffRecord = {
   conversationSnapshot: Array<{ role: string; content: string }>;
   timestamp: number;
   status: "pending" | "resolved";
+  resolvedAt?: number;
 };
 
 export type PendingOrderItem = {
@@ -66,6 +68,8 @@ function customerHandoffsKey(waId: string) {
 
 const PENDING_QUEUE_KEY = "handoff_queue:pending";
 
+const ALL_QUEUE_KEY = "handoff_queue:all";
+
 export async function createHandoff(
   data: Omit<HandoffRecord, "id" | "timestamp" | "status">,
 ): Promise<HandoffRecord> {
@@ -78,9 +82,43 @@ export async function createHandoff(
 
   await redis.set(handoffKey(record.id), record);
   await redis.sadd(PENDING_QUEUE_KEY, record.id);
+  await redis.sadd(ALL_QUEUE_KEY, record.id);
   await redis.sadd(customerHandoffsKey(record.waId), record.id);
 
   return record;
+}
+
+export async function resolveHandoff(
+  id: string,
+): Promise<HandoffRecord | null> {
+  const record = await redis.get<HandoffRecord>(handoffKey(id));
+  if (!record) return null;
+
+  const updated: HandoffRecord = {
+    ...record,
+    status: "resolved",
+    resolvedAt: Date.now(),
+  };
+
+  await redis.set(handoffKey(id), updated);
+  await redis.srem(PENDING_QUEUE_KEY, id);
+
+  return updated;
+}
+
+export async function getHandoffById(
+  id: string,
+): Promise<HandoffRecord | null> {
+  return redis.get<HandoffRecord>(handoffKey(id));
+}
+
+export async function getAllHandoffs(): Promise<HandoffRecord[]> {
+  const ids = await redis.smembers(ALL_QUEUE_KEY);
+  if (!ids || ids.length === 0) return [];
+  const records = await Promise.all(
+    ids.map((id) => redis.get<HandoffRecord>(handoffKey(id))),
+  );
+  return records.filter((r): r is HandoffRecord => r !== null);
 }
 
 export async function getPendingHandoffsForCustomer(
