@@ -23,10 +23,11 @@ const config: runtime.GetPrismaClientConfig = {
       "value": "prisma-client"
     },
     "output": {
-      "value": "C:\\Users\\user\\Documents\\alpha-call-center-ai\\AlphaPharma-CallCenter-WhatsApp-AI\\app\\generated\\prisma",
+      "value": "C:\\Users\\User\\AlphaPharma-CallCenter-WhatsApp-AI\\app\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
+      "skipEngine": "true",
       "engineType": "library"
     },
     "binaryTargets": [
@@ -41,7 +42,7 @@ const config: runtime.GetPrismaClientConfig = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "C:\\Users\\user\\Documents\\alpha-call-center-ai\\AlphaPharma-CallCenter-WhatsApp-AI\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\User\\AlphaPharma-CallCenter-WhatsApp-AI\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativePath": "../../../prisma",
@@ -60,8 +61,8 @@ const config: runtime.GetPrismaClientConfig = {
       }
     }
   },
-  "inlineSchema": "generator client {\n  provider      = \"prisma-client\"\n  output        = \"../app/generated/prisma\"\n  binaryTargets = [\"native\", \"rhel-openssl-3.0.x\"]\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel Post {\n  id          String @id @default(cuid())\n  title       String\n  description String\n}\n",
-  "inlineSchemaHash": "de46651e2adf088119175adf6d65a49f0ce9a89fff31ecfe0be06d6c86558065",
+  "inlineSchema": "generator client {\n  provider      = \"prisma-client\"\n  output        = \"../app/generated/prisma\"\n  binaryTargets = [\"native\", \"rhel-openssl-3.0.x\"]\n  skipEngine    = true\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel Post {\n  id          String @id @default(cuid())\n  title       String\n  description String\n}\n",
+  "inlineSchemaHash": "6f0752b75e83144023156f260322985a685863e7bf44e8917a8c9278ce8e8bbf",
   "copyEngine": true,
   "runtimeDataModel": {
     "models": {},

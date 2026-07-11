@@ -5,8 +5,20 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
     volumes:
-      - .:/app # ← syncs your code changes live
-      - /app/node_modules # ← keeps container's node_modules
-      - /app/.next # ← keeps container's build cache
+      # Only mount source files, not node_modules
+      - ./app:/app/app
+      - ./components:/app/components
+      - ./lib:/app/lib
+      - ./public:/app/public
+      - ./styles:/app/styles
+      - node_modules:/app/node_modules
+      - nextjs_cache:/app/.next
     command: npm run dev
+
+volumes:
+  node_modules:
+  nextjs_cache:
