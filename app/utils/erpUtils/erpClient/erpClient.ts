@@ -95,7 +95,7 @@ export async function checkItemStockAndPrice(
       "item_group",
     ]),
   );
-  searchUrl.searchParams.set("limit_page_length", "5");
+  searchUrl.searchParams.set("limit_page_length", "30");
 
   const searchRes = await fetch(searchUrl, {
     headers: { Authorization: AUTH_HEADER },
