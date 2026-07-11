@@ -3,9 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const handoff = await getHandoffById(params.id);
+  const { id } = await params;
+
+  const handoff = await getHandoffById(id);
   if (!handoff) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -14,8 +16,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const body = await request.json();
 
   if (body.status !== "resolved") {
@@ -25,7 +28,7 @@ export async function PATCH(
     );
   }
 
-  const updated = await resolveHandoff(params.id);
+  const updated = await resolveHandoff(id);
   if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
