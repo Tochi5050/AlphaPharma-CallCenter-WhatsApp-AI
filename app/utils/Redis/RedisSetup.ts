@@ -37,6 +37,23 @@ export type PendingOrder = {
 
 const AWAITING_PAYMENT_TTL = 60 * 60 * 48; // 48h
 
+function engagedKey(waId: string) {
+  return `pharmacist_engaged:${waId}`;
+}
+
+export async function markPharmacistEngaged(waId: string): Promise<void> {
+  await redis.set(engagedKey(waId), "1", { ex: 60 * 60 * 24 });
+}
+
+export async function isPharmacistEngaged(waId: string): Promise<boolean> {
+  const result = await redis.get(engagedKey(waId));
+  return result !== null;
+}
+
+export async function clearPharmacistEngaged(waId: string): Promise<void> {
+  await redis.del(engagedKey(waId));
+}
+
 function awaitingPaymentKey(waId: string) {
   return `awaiting_payment:${waId}`;
 }
@@ -102,7 +119,7 @@ export async function resolveHandoff(
 
   await redis.set(handoffKey(id), updated);
   await redis.srem(PENDING_QUEUE_KEY, id);
-
+  await clearPharmacistEngaged(record.waId);
   return updated;
 }
 
