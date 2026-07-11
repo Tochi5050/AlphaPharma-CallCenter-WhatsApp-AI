@@ -136,7 +136,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         role: m.role as "user" | "assistant",
         content: m.content,
       }));
-
+    console.log("[CLAUDE] first call starting");
     let response: Anthropic.Messages.Message = await anthropic.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 1024,
@@ -144,7 +144,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       tools: erpTools,
       messages,
     });
-
+    console.log("[CLAUDE] first call done, stop_reason:", response.stop_reason);
     let handoffTriggered = false;
 
     while (response.stop_reason === "tool_use") {
@@ -180,7 +180,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       }
 
       messages.push({ role: "user", content: toolResultBlocks });
-
+      console.log("[CLAUDE] second call starting");
       response = await anthropic.messages.create({
         model: "claude-sonnet-5",
         max_tokens: 1024,
@@ -188,13 +188,17 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         tools: erpTools,
         messages,
       });
+      console.log(
+        "[CLAUDE] second call done, stop_reason:",
+        response.stop_reason,
+      );
     }
 
     const finalTextBlock = response.content.find(
       (c): c is Anthropic.Messages.TextBlock => c.type === "text",
     );
     const finalText = finalTextBlock?.text ?? "";
-
+    console.log("[FINAL TEXT]", finalText.slice(0, 100));
     if (finalText) {
       await appendMessage(incomingMsg.from, {
         role: "assistant",
@@ -203,12 +207,14 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     }
 
     if (!handoffTriggered && finalText) {
+      console.log("[SEND] sending WhatsApp reply now");
       const customer = await lookupCustomerByPhone(incomingMsg.from);
       const canGreet = await isFirstReply(incomingMsg.from);
       await sendWhatsAppReply(
         incomingMsg.from,
         canGreet ? withGreeting(finalText, customer.customerName) : finalText,
       );
+      console.log("[SEND] WhatsApp reply sent successfully");
       await markReplied(incomingMsg.from);
     }
 

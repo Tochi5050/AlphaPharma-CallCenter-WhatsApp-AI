@@ -51,8 +51,9 @@ export async function executeErpTool(
     );
 
     if (!result.found) return result;
-
+    console.log("[TOOL] stock lookup done, fetching customer discount...");
     const customer = await lookupCustomerByPhone(context.waId);
+    console.log("[TOOL] customer lookup done:", JSON.stringify(customer));
     const matchesWithDiscount = result.matches.map((m) => {
       const finalPrice = applyDiscount(
         m.price,
@@ -61,7 +62,7 @@ export async function executeErpTool(
       );
       return { ...m, price: finalPrice };
     });
-
+    console.log("[TOOL] check_item_stock_and_price returning to Claude");
     return { found: true, matches: matchesWithDiscount };
   }
 
