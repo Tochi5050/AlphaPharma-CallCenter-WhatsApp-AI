@@ -92,6 +92,11 @@ export async function checkItemStockAndPrice(
   });
   const searchData = await searchRes.json();
 
+  console.log(
+    `[ERP SEARCH] "${itemName}" ->`,
+    JSON.stringify(searchData.data ?? searchData),
+  );
+
   if (!searchData.data || searchData.data.length === 0) {
     return { found: false, message: `No item matching "${itemName}" found.` };
   }
@@ -100,16 +105,6 @@ export async function checkItemStockAndPrice(
 
   for (const item of searchData.data) {
     const baseUom = item.stock_uom;
-
-    const fullItemRes = await fetch(
-      `${ERP_BASE}/api/resource/Item/${item.item_code}`,
-      {
-        headers: { Authorization: AUTH_HEADER },
-      },
-    );
-    const fullItem = await fullItemRes.json();
-    const uomTable: Array<{ uom: string; conversion_factor: number }> =
-      fullItem.data?.uoms ?? [];
 
     const priceUrl = new URL(`${ERP_BASE}/api/resource/Item Price`);
     priceUrl.searchParams.set(
@@ -130,7 +125,27 @@ export async function checkItemStockAndPrice(
     const priceData = await priceRes.json();
     const baseRate = priceData.data?.[0]?.rate;
 
-    if (baseRate === undefined) continue; // no sellable price — skip this brand entirely
+    console.log(
+      `[ERP PRICE] ${item.item_code} (uom: ${baseUom}) ->`,
+      JSON.stringify(priceData.data ?? priceData),
+    );
+
+    if (baseRate === undefined) {
+      console.log(
+        `[ERP SKIP] ${item.item_code} skipped - no matching Item Price entry`,
+      );
+      continue;
+    }
+
+    const fullItemRes = await fetch(
+      `${ERP_BASE}/api/resource/Item/${item.item_code}`,
+      {
+        headers: { Authorization: AUTH_HEADER },
+      },
+    );
+    const fullItem = await fullItemRes.json();
+    const uomTable: Array<{ uom: string; conversion_factor: number }> =
+      fullItem.data?.uoms ?? [];
 
     let finalUom = baseUom;
     let quantityMultiplier = 1;
@@ -167,6 +182,10 @@ export async function checkItemStockAndPrice(
       is_medicine: item.item_group === DISCOUNT_ELIGIBLE_GROUP,
     });
   }
+
+  console.log(
+    `[ERP RESULT] "${itemName}" -> ${matches.length} sellable match(es)`,
+  );
 
   if (matches.length === 0) {
     return {
