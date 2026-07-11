@@ -116,14 +116,14 @@ export async function checkItemStockAndPrice(
         ["uom", "=", baseUom],
       ]),
     );
-    priceUrl.searchParams.set("fields", JSON.stringify(["rate"]));
+    priceUrl.searchParams.set("fields", JSON.stringify(["price_list_rate"]));
     priceUrl.searchParams.set("limit_page_length", "1");
 
     const priceRes = await fetch(priceUrl, {
       headers: { Authorization: AUTH_HEADER },
     });
     const priceData = await priceRes.json();
-    const baseRate = priceData.data?.[0]?.rate;
+    const baseRate = priceData.data?.[0]?.price_list_rate;
 
     console.log(
       `[ERP PRICE] ${item.item_code} (uom: ${baseUom}) ->`,
