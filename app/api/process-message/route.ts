@@ -139,7 +139,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     console.log("[CLAUDE] first call starting");
     let response: Anthropic.Messages.Message = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: buildSystemPrompt(),
       tools: erpTools,
       messages,
@@ -183,7 +183,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       console.log("[CLAUDE] second call starting");
       response = await anthropic.messages.create({
         model: "claude-sonnet-5",
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: buildSystemPrompt(),
         tools: erpTools,
         messages,
@@ -206,16 +206,39 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    if (!handoffTriggered && finalText) {
-      console.log("[SEND] sending WhatsApp reply now");
-      const customer = await lookupCustomerByPhone(incomingMsg.from);
-      const canGreet = await isFirstReply(incomingMsg.from);
-      await sendWhatsAppReply(
-        incomingMsg.from,
-        canGreet ? withGreeting(finalText, customer.customerName) : finalText,
-      );
-      console.log("[SEND] WhatsApp reply sent successfully");
-      await markReplied(incomingMsg.from);
+    if (!handoffTriggered) {
+      if (finalText) {
+        const customer = await lookupCustomerByPhone(incomingMsg.from);
+        const canGreet = await isFirstReply(incomingMsg.from);
+        await sendWhatsAppReply(
+          incomingMsg.from,
+          canGreet ? withGreeting(finalText, customer.customerName) : finalText,
+        );
+        await markReplied(incomingMsg.from);
+      } else {
+        console.error(
+          "[FALLBACK] Empty final text with no handoff, stop_reason:",
+          response.stop_reason,
+        );
+        const customer = await lookupCustomerByPhone(incomingMsg.from);
+        await createHandoff({
+          waId: incomingMsg.from,
+          customerName: customer.customerName,
+          category: "other",
+          reason: `AI response was empty or incomplete (stop_reason: ${response.stop_reason})`,
+          conversationSnapshot: conversationSnapshot,
+        });
+        const canGreet = await isFirstReply(incomingMsg.from);
+        const fallbackText =
+          "Just give me a minute while I connect you with one of our pharmacists.";
+        await sendWhatsAppReply(
+          incomingMsg.from,
+          canGreet
+            ? withGreeting(fallbackText, customer.customerName)
+            : fallbackText,
+        );
+        await markReplied(incomingMsg.from);
+      }
     }
 
     await markMessageFullyProcessed(incomingMsg.messageId);
