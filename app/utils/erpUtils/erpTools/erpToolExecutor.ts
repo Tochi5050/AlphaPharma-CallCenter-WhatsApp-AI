@@ -60,7 +60,11 @@ export async function executeErpTool(
         customer.discountPercentage ?? 0,
         m.is_medicine,
       );
-      return { ...m, price: finalPrice };
+      return {
+        ...m,
+        price: finalPrice,
+        discount_applied: finalPrice !== m.price,
+      };
     });
     console.log("[TOOL] check_item_stock_and_price returning to Claude");
     return { found: true, matches: matchesWithDiscount };

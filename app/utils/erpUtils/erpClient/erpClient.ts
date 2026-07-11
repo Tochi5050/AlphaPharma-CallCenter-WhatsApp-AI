@@ -1,3 +1,5 @@
+import { normalizeUom } from "../../normalizeUom/normalizeUom";
+
 const ERP_BASE = "https://alpha.clouderp.one";
 const AUTH_HEADER = `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`;
 const WAREHOUSE = "Adeniyi Jones - APS";
@@ -172,8 +174,9 @@ export async function checkItemStockAndPrice(
         let quantityMultiplier = 1;
 
         if (requestedUom) {
-          const match = uomTable.find(
-            (u) => u.uom.toLowerCase() === requestedUom.toLowerCase(),
+          const candidates = normalizeUom(requestedUom);
+          const match = uomTable.find((u) =>
+            candidates.includes(u.uom.toLowerCase()),
           );
           if (match) {
             finalUom = match.uom;

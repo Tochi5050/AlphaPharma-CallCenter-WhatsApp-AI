@@ -21,6 +21,7 @@ import {
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { NextRequest, NextResponse } from "next/server";
+import { stripGreetingOpeners } from "@/app/utils/aiGreeting/stripGreetingOpeners";
 
 const anthropic = new Anthropic();
 
@@ -197,7 +198,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     const finalTextBlock = response.content.find(
       (c): c is Anthropic.Messages.TextBlock => c.type === "text",
     );
-    const finalText = finalTextBlock?.text ?? "";
+    const finalText = stripGreetingOpeners(finalTextBlock?.text ?? "");
     console.log("[FINAL TEXT]", finalText.slice(0, 100));
     if (finalText) {
       await appendMessage(incomingMsg.from, {
