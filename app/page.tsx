@@ -1,5 +1,10 @@
-import Image from "next/image";
+import React from 'react'
+import DashboardContent from './DashboardContent'
 
-export default function Home() {
-  return <div>New Project Started Again</div>;
+const Home = () => {
+  return (
+    <div className="h-full overflow-hidden overscroll-none flex flex-col min-h-0"><DashboardContent /></div>
+  )
 }
+
+export default Home

@@ -45,6 +45,14 @@ export type msgObj = {
 
 export type MessageCategory = "text" | "ignore" | "handoff";
 
+export type PharmacistEcho = {
+  isEcho: true;
+  customerWaId: string;
+  messageId: string;
+  text?: string;
+  type: string;
+};
+
 export type ParsedMessage = {
   from: string;
   name?: string;
@@ -57,14 +65,37 @@ export type ParsedMessage = {
   caption?: string;
 };
 
+export function isPharmacistEcho(
+  msg: ParsedMessage | PharmacistEcho,
+): msg is PharmacistEcho {
+  return "isEcho" in msg && msg.isEcho === true;
+}
+
 function classifyType(type: string): MessageCategory {
   if (type === "text") return "text";
   if (type === "reaction" || type === "sticker") return "ignore";
   return "handoff"; // image, document, audio, video, location, unknown, etc.
 }
 
-export function parseIncomingMessage(body: msgObj): ParsedMessage | null {
+export function parseIncomingMessage(
+  body: msgObj,
+): ParsedMessage | PharmacistEcho | null {
   const value = body.entry?.[0]?.changes?.[0]?.value;
+  const field = value?.field;
+
+  if (field === "smb_message_echoes") {
+    const echo = (value as any)?.message_echoes?.[0];
+    if (!echo) return null;
+
+    return {
+      isEcho: true,
+      customerWaId: echo.to,
+      messageId: echo.id,
+      text: echo.text?.body,
+      type: echo.type,
+    };
+  }
+
   const message = value?.messages?.[0];
   if (!message) return null;
 
@@ -98,5 +129,5 @@ export function parseIncomingMessage(body: msgObj): ParsedMessage | null {
     };
   }
 
-  return base; // audio, video, location, reaction, sticker, unknown — category already set
+  return base;
 }
