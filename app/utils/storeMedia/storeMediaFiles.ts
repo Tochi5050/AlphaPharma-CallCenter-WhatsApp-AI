@@ -1,7 +1,7 @@
 // lib/whatsapp/resolveAndStoreMedia.ts
 import { put } from "@vercel/blob";
 
-const D360_BASE_URL = "https://waba-sandbox.360dialog.io"; // switch if still on sandbox
+const D360_BASE_URL = "https://waba-v2.360dialog.io"; // switch if still on sandbox
 
 type ResolvedMedia = {
   mediaUrl: string;
