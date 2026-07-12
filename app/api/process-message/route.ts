@@ -522,6 +522,12 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       if (finalText) {
         const customer = await lookupCustomerByPhone(incomingMsg.from);
         const canGreet = await isFirstReply(incomingMsg.from);
+        console.log(
+          "[SEND DEBUG] to:",
+          incomingMsg.from,
+          "text length:",
+          finalText.length,
+        );
         await sendWhatsAppReply(
           incomingMsg.from,
           canGreet ? withGreeting(finalText, customer.customerName) : finalText,
@@ -543,6 +549,12 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         const canGreet = await isFirstReply(incomingMsg.from);
         const fallbackText =
           "Just give me a minute while I connect you with one of our pharmacists.";
+        console.log(
+          "[SEND DEBUG] to:",
+          incomingMsg.from,
+          "text length:",
+          finalText.length,
+        );
         await sendWhatsAppReply(
           incomingMsg.from,
           canGreet
