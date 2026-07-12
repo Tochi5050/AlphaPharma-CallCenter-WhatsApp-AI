@@ -102,7 +102,7 @@ function ConversationsContent() {
 
 
   const loadHandoffs = useCallback(async (f: FilterValue) => {
-    if (f === 'new') return; // mock tabs — no API call
+    if (f === 'new') return; // mock tabs  no API call
 
     setIsLoading(true);
     try {
@@ -275,7 +275,7 @@ function ConversationsContent() {
 
           {/* Filter tabs */}
           <div className="flex overflow-x-auto no-scrollbar gap-1.5 pb-1 whitespace-nowrap">
-            {(['all', 'new', 'pending', 'awaiting-payment', 'resolved'] as const).map((f) => {
+            {(['all', 'pending', 'awaiting-payment', 'resolved'] as const).map((f) => {
               const label =
                 f === 'awaiting-payment'
                   ? 'Payment'
@@ -285,8 +285,8 @@ function ConversationsContent() {
                   key={f}
                   onClick={() => pushFilter(f)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${filter === f
-                      ? 'bg-[#0c237c] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-[#0c237c] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                 >
                   {label}
@@ -321,8 +321,8 @@ function ConversationsContent() {
                 key={h.id}
                 onClick={() => selectLiveHandoff(h)}
                 className={`p-4 border-b border-gray-200 cursor-pointer transition-colors ${selectedHandoff?.id === h.id
-                    ? 'bg-blue-50 border-l-4 border-l-[#0c237c]'
-                    : 'hover:bg-gray-50'
+                  ? 'bg-blue-50 border-l-4 border-l-[#0c237c]'
+                  : 'hover:bg-gray-50'
                   }`}
               >
                 <div className="flex items-start justify-between mb-2">
@@ -352,8 +352,8 @@ function ConversationsContent() {
                 key={c.id}
                 onClick={() => selectMockConversation(c)}
                 className={`p-4 border-b border-gray-200 cursor-pointer transition-colors ${selectedMock?.id === c.id
-                    ? 'bg-blue-50 border-l-4 border-l-[#0c237c]'
-                    : 'hover:bg-gray-50'
+                  ? 'bg-blue-50 border-l-4 border-l-[#0c237c]'
+                  : 'hover:bg-gray-50'
                   }`}
               >
                 <div className="flex items-start justify-between mb-2">

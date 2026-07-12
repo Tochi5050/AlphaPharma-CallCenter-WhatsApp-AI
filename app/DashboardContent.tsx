@@ -28,6 +28,7 @@ export default async function DashboardPage() {
   }
 
   const stats = [
+    /*
     {
       label: 'New Conversations',
       value: newCount,
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200',
     },
+    */
     {
       label: 'Pending',
       value: liveSummary.pending,
@@ -46,7 +48,7 @@ export default async function DashboardPage() {
     },
     {
       label: 'Awaiting Payment',
-      value: liveSummary.awaitingPayment,
+      value: liveSummary.awaitingPayment, // live Vercel API count
       icon: CreditCard,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
@@ -70,7 +72,7 @@ export default async function DashboardPage() {
       </div>
 
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -96,9 +98,11 @@ export default async function DashboardPage() {
       <Card className="p-4 sm:p-6 mb-8">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Quick Filters</h2>
         <div className="flex flex-wrap gap-2.5 sm:gap-3">
+          {/*
           <Button asChild variant="outline" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100">
             <Link href="/conversations?filter=new">View New ({newCount})</Link>
           </Button>
+          */}
           <Button asChild variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100">
             <Link href="/conversations?filter=pending">View Pending ({liveSummary.pending})</Link>
           </Button>
