@@ -17,7 +17,8 @@ export default function ProfileForm() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto h-full">
+    <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto h-full bg-gray-50">
+      {/* 
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">Profile</h1>
         <p className="text-gray-600 mt-2 text-sm sm:text-base">Manage your account settings</p>
@@ -103,6 +104,7 @@ export default function ProfileForm() {
           </CardContent>
         </Card>
       </div>
+      */}
     </div>
   );
 }
