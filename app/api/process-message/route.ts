@@ -451,7 +451,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     console.log("[CLAUDE] first call starting");
     let response: Anthropic.Messages.Message = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 2048,
+      max_tokens: 3048,
       system: buildSystemPrompt(),
       tools: erpTools,
       messages,
@@ -495,7 +495,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       console.log("[CLAUDE] second call starting");
       response = await anthropic.messages.create({
         model: "claude-sonnet-5",
-        max_tokens: 2048,
+        max_tokens: 3048,
         system: buildSystemPrompt(),
         tools: erpTools,
         messages,
