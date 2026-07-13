@@ -37,12 +37,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     body = JSON.parse(rawBody);
     console.log("[RAW WEBHOOK]", JSON.stringify(body));
-    console.log(
-      "[FAST ROUTE] messageId:",
-      body!.messageId,
-      "at",
-      new Date().toISOString(),
-    );
+    // console.log(
+    //   "[FAST ROUTE] messageId:",
+    //   body!.messageId,
+    //   "at",
+    //   new Date().toISOString(),
+    // );
   } catch (err) {
     console.error("Invalid JSON received:", rawBody);
     return NextResponse.json(
