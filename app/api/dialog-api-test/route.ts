@@ -36,13 +36,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let body;
   try {
     body = JSON.parse(rawBody);
-    
   } catch (err) {
-    console.error("Invalid JSON received:", rawBody);
-    return NextResponse.json(
-      { message: "Invalid JSON, ignored" },
-      { status: 200 },
-    );
+    // console.error("Invalid JSON received:", rawBody);
+    // return NextResponse.json(
+    //   { message: "Invalid JSON, ignored" },
+    //   { status: 200 },
+    // );
   }
 
   try {
