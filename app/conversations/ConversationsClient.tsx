@@ -542,7 +542,7 @@ function ConversationsContent() {
                           <th className="pb-2 font-medium">Item</th>
                           <th className="pb-2 font-medium">UOM</th>
                           <th className="pb-2 font-medium text-right">Qty</th>
-                          <th className="pb-2 font-medium text-right">Unit â‚¦</th>
+                          <th className="pb-2 font-medium text-right">Unit ₦</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -561,7 +561,7 @@ function ConversationsContent() {
                         <tr className="border-t-2 border-gray-200">
                           <td colSpan={3} className="pt-2 font-semibold text-gray-900">Total</td>
                           <td className="pt-2 text-right font-semibold text-gray-900">
-                            â‚¦{selectedHandoff.orderDetails.total.toLocaleString()}
+                            ₦ {selectedHandoff.orderDetails.total.toLocaleString()}
                           </td>
                         </tr>
                       </tfoot>
