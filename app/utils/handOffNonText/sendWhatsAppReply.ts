@@ -20,7 +20,13 @@ export async function sendWhatsAppReply(
 
   if (!res.ok) {
     const errBody = await res.text();
-    console.error("Failed to send WhatsApp reply:", res.status, errBody);
+    console.error(
+      "Failed to send WhatsApp reply:",
+      "res",
+      res,
+      res.status,
+      errBody,
+    );
     throw new Error(`WhatsApp send failed: ${res.status}`);
   }
 }
