@@ -4,7 +4,7 @@ export async function sendWhatsAppReply(
   to: string,
   text: string,
 ): Promise<void> {
-  const res = await fetch(`${D360_BASE_URL}`, {
+  const res = await fetch(`${D360_BASE_URL}/v1/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -20,13 +20,7 @@ export async function sendWhatsAppReply(
 
   if (!res.ok) {
     const errBody = await res.text();
-    console.error(
-      "Failed to send WhatsApp reply:",
-      "res",
-      res,
-      res.status,
-      errBody,
-    );
+    console.error("Failed to send WhatsApp reply:", res.status, errBody);
     throw new Error(`WhatsApp send failed: ${res.status}`);
   }
 }
