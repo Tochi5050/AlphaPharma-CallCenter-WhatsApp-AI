@@ -1,10 +1,10 @@
-const D360_BASE_URL = "https://waba-sandbox.360dialog.io"; // switch to waba-sandbox.360dialog.io while testing sandbox
+const D360_BASE_URL = "https://waba-v2.360dialog.io"; // switch to waba-sandbox.360dialog.io while testing sandbox
 
 export async function sendWhatsAppReply(
   to: string,
   text: string,
 ): Promise<void> {
-  const res = await fetch(`${D360_BASE_URL}/v1/messages`, {
+  const res = await fetch(`${D360_BASE_URL}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
