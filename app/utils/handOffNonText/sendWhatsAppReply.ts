@@ -4,7 +4,7 @@ export async function sendWhatsAppReply(
   to: string,
   text: string,
 ): Promise<void> {
-  const res = await fetch(`${D360_BASE_URL}/v1/messages`, {
+  const res = await fetch(`${D360_BASE_URL}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -12,6 +12,7 @@ export async function sendWhatsAppReply(
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
+      recipient_type: "individual",
       to,
       type: "text",
       text: { body: text },
