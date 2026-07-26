@@ -37,6 +37,14 @@ export type msgObj = {
           timestamp: string;
           from_user_id: string;
         }>;
+        message_echoes?: Array<{
+          to: string;
+          id: string;
+          text?: {
+            body: string;
+          };
+          type: string;
+        }>;
         field: string;
       };
     }>;
@@ -82,9 +90,11 @@ export function parseIncomingMessage(
 ): ParsedMessage | PharmacistEcho | null {
   const value = body.entry?.[0]?.changes?.[0]?.value;
   const field = value?.field;
+  console.log("body @parsedIncomingMessage -", body);
+  console.log("field @parsedIncomingMessage -", field);
 
   if (field === "smb_message_echoes") {
-    const echo = (value as any)?.message_echoes?.[0];
+    const echo = value?.message_echoes?.[0];
     if (!echo) return null;
 
     return {
