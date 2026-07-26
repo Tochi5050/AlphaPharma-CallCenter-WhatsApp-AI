@@ -45,8 +45,8 @@ export type msgObj = {
           };
           type: string;
         }>;
-        field: string;
       };
+      field: string;
     }>;
   }>;
 };
@@ -89,7 +89,7 @@ export function parseIncomingMessage(
   body: msgObj,
 ): ParsedMessage | PharmacistEcho | null {
   const value = body.entry?.[0]?.changes?.[0]?.value;
-  const field = value?.field;
+  const field = body.entry?.[0]?.changes?.[0]?.field;
   console.log("body @parsedIncomingMessage -", body.entry?.[0]?.changes);
   console.log("field @parsedIncomingMessage -", field);
 
