@@ -39,11 +39,11 @@ export const maxDuration = 30;
 async function handler(request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
   const incomingMsg = parseIncomingMessage(body);
-
+  console.log("incomingMsg - top =>", incomingMsg);
   if (!incomingMsg) {
     return NextResponse.json({ message: "No message found" }, { status: 200 });
   }
-
+  console.log("incomingMsg-bottom=>", incomingMsg);
   if (isPharmacistEcho(incomingMsg)) {
     console.log(
       "[ECHO] Pharmacist reply detected:",
