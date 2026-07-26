@@ -91,6 +91,7 @@ export function parseIncomingMessage(
   const value = body.entry?.[0]?.changes?.[0]?.value;
   const field = body.entry?.[0]?.changes?.[0]?.field;
   console.log("body @parsedIncomingMessage -", body.entry?.[0]?.changes);
+  console.log("message @parsedIncomingMessage -", value?.messages?.[0]);
   console.log("field @parsedIncomingMessage -", field);
 
   if (field === "smb_message_echoes") {
