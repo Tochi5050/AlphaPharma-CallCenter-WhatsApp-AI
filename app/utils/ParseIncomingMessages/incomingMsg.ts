@@ -95,6 +95,7 @@ export function parseIncomingMessage(
 
   if (field === "smb_message_echoes") {
     const echo = value?.message_echoes?.[0];
+    console.log("echo @parsedIncomingMessage -", echo);
     if (!echo) return null;
 
     return {
@@ -107,6 +108,7 @@ export function parseIncomingMessage(
   }
 
   const message = value?.messages?.[0];
+  console.log("message @parsedIncomingMessage -", message);
   if (!message) return null;
 
   const base = {
