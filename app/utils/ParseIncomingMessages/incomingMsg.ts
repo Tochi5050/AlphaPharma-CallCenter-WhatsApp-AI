@@ -90,7 +90,7 @@ export function parseIncomingMessage(
 ): ParsedMessage | PharmacistEcho | null {
   const value = body.entry?.[0]?.changes?.[0]?.value;
   const field = value?.field;
-  console.log("body @parsedIncomingMessage -", body);
+  console.log("body @parsedIncomingMessage -", body.entry?.[0]?.changes);
   console.log("field @parsedIncomingMessage -", field);
 
   if (field === "smb_message_echoes") {
