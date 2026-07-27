@@ -73,11 +73,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
   const lockAcquired = await acquireCustomerLock(incomingMsg.from);
   if (!lockAcquired) {
-    console.log(
-      "[LOCK] Could not acquire lock for",
-      incomingMsg.from,
-      "- another message is currently being processed for this customer, retrying via QStash",
-    );
+    console.log("[LOCK] BLOCKED - could not acquire lock for", incomingMsg.from);
     return NextResponse.json(
       { error: "Customer currently locked, will retry" },
       { status: 500 },
@@ -313,6 +309,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     console.error("Error processing message:", error);
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   } finally {
+    console.log("[LOCK] RELEASED for", incomingMsg.from, "at", new Date().toISOString());
     await releaseCustomerLock(incomingMsg.from);
   }
 }
