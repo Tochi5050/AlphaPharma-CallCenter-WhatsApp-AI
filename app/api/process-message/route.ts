@@ -73,7 +73,10 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
   const lockAcquired = await acquireCustomerLock(incomingMsg.from);
   if (!lockAcquired) {
-    console.log("[LOCK] BLOCKED - could not acquire lock for", incomingMsg.from);
+    console.log(
+      "[LOCK] BLOCKED - could not acquire lock for",
+      incomingMsg.from,
+    );
     return NextResponse.json(
       { error: "Customer currently locked, will retry" },
       { status: 500 },
@@ -128,6 +131,12 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         incomingMsg.from,
         canGreet ? withGreeting(replyText, customer.customerName) : replyText,
       );
+      await appendMessage(incomingMsg.from, {
+        role: "assistant",
+        content: pendingOrder
+          ? "[Payment proof received — escalated to pharmacist for confirmation]"
+          : `[Escalated to pharmacist — media received: ${incomingMsg.type}]`,
+      });
       await markReplied(incomingMsg.from);
       await markMessageFullyProcessed(incomingMsg.messageId);
 
@@ -252,51 +261,50 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    if (!handoffTriggered) {
-      if (finalText) {
-        const customer = await lookupCustomerByPhone(incomingMsg.from);
-        const canGreet = await isFirstReply(incomingMsg.from);
-        console.log(
-          "[SEND DEBUG] to:",
-          incomingMsg.from,
-          "text length:",
-          finalText.length,
-        );
-        await sendWhatsAppReply(
-          incomingMsg.from,
-          canGreet ? withGreeting(finalText, customer.customerName) : finalText,
-        );
-        await markReplied(incomingMsg.from);
-      } else {
-        console.error(
-          "[FALLBACK] Empty final text with no handoff, stop_reason:",
-          response.stop_reason,
-        );
-        const customer = await lookupCustomerByPhone(incomingMsg.from);
-        await createHandoff({
-          waId: incomingMsg.from,
-          customerName: customer.customerName,
-          category: "other",
-          reason: `AI response was empty or incomplete (stop_reason: ${response.stop_reason})`,
-          conversationSnapshot: conversationSnapshot,
-        });
-        const canGreet = await isFirstReply(incomingMsg.from);
-        const fallbackText =
-          "Just give me a minute while I connect you with one of our pharmacists.";
-        console.log(
-          "[SEND DEBUG] to:",
-          incomingMsg.from,
-          "text length:",
-          finalText.length,
-        );
-        await sendWhatsAppReply(
-          incomingMsg.from,
-          canGreet
-            ? withGreeting(fallbackText, customer.customerName)
-            : fallbackText,
-        );
-        await markReplied(incomingMsg.from);
-      }
+    if (finalText) {
+      const customer = await lookupCustomerByPhone(incomingMsg.from);
+      const canGreet = await isFirstReply(incomingMsg.from);
+      console.log(
+        "[SEND DEBUG] to:",
+        incomingMsg.from,
+        "text length:",
+        finalText.length,
+      );
+      await sendWhatsAppReply(
+        incomingMsg.from,
+        canGreet ? withGreeting(finalText, customer.customerName) : finalText,
+      );
+
+      await markReplied(incomingMsg.from);
+    } else if (!handoffTriggered) {
+      console.error(
+        "[FALLBACK] Empty final text with no handoff, stop_reason:",
+        response.stop_reason,
+      );
+      const customer = await lookupCustomerByPhone(incomingMsg.from);
+      await createHandoff({
+        waId: incomingMsg.from,
+        customerName: customer.customerName,
+        category: "other",
+        reason: `AI response was empty or incomplete (stop_reason: ${response.stop_reason})`,
+        conversationSnapshot: conversationSnapshot,
+      });
+      const canGreet = await isFirstReply(incomingMsg.from);
+      const fallbackText =
+        "Just give me a minute while I connect you with one of our pharmacists.";
+      console.log(
+        "[SEND DEBUG] to:",
+        incomingMsg.from,
+        "text length:",
+        finalText.length,
+      );
+      await sendWhatsAppReply(
+        incomingMsg.from,
+        canGreet
+          ? withGreeting(fallbackText, customer.customerName)
+          : fallbackText,
+      );
+      await markReplied(incomingMsg.from);
     }
 
     await markMessageFullyProcessed(incomingMsg.messageId);
@@ -309,7 +317,12 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     console.error("Error processing message:", error);
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   } finally {
-    console.log("[LOCK] RELEASED for", incomingMsg.from, "at", new Date().toISOString());
+    console.log(
+      "[LOCK] RELEASED for",
+      incomingMsg.from,
+      "at",
+      new Date().toISOString(),
+    );
     await releaseCustomerLock(incomingMsg.from);
   }
 }

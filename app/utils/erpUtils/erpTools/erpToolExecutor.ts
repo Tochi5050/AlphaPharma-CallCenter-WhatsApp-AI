@@ -12,6 +12,7 @@ import {
   markReplied,
   setAwaitingPayment,
   PendingOrderItem,
+  appendMessage,
 } from "@/app/utils/Redis/RedisSetup";
 
 type ToolContext = {
@@ -101,6 +102,10 @@ export async function executeErpTool(
       context.waId,
       canGreet ? withGreeting(replyText, customer.customerName) : replyText,
     );
+    await appendMessage(context.waId, {
+      role: "assistant",
+      content: `[Escalated to pharmacist — category: ${input.category}. Reason: ${input.reason}]`,
+    });
     await markReplied(context.waId);
 
     console.log("[HANDOFF] reply sent to customer");
