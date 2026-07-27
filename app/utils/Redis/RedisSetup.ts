@@ -230,3 +230,12 @@ export async function markMessageFullyProcessed(
     ex: PROCESSED_FINAL_TTL_SECONDS,
   });
 }
+
+export async function acquireCustomerLock(waId: string): Promise<boolean> {
+  const result = await redis.set(`lock:${waId}`, "1", { nx: true, ex: 60 });
+  return result !== null;
+}
+
+export async function releaseCustomerLock(waId: string): Promise<void> {
+  await redis.del(`lock:${waId}`);
+}

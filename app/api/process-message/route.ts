@@ -22,6 +22,8 @@ import {
   getAndClearAwaitingPayment,
   markPharmacistEngaged,
   isPharmacistEngaged,
+  acquireCustomerLock,
+  releaseCustomerLock,
 } from "@/app/utils/Redis/RedisSetup";
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
@@ -67,6 +69,19 @@ async function handler(request: NextRequest): Promise<NextResponse> {
   if (incomingMsg.category === "ignore") {
     await markMessageFullyProcessed(incomingMsg.messageId);
     return NextResponse.json({ message: "Ignored" }, { status: 200 });
+  }
+
+  const lockAcquired = await acquireCustomerLock(incomingMsg.from);
+  if (!lockAcquired) {
+    console.log(
+      "[LOCK] Could not acquire lock for",
+      incomingMsg.from,
+      "- another message is currently being processed for this customer, retrying via QStash",
+    );
+    return NextResponse.json(
+      { error: "Customer currently locked, will retry" },
+      { status: 500 },
+    );
   }
 
   try {
@@ -297,6 +312,8 @@ async function handler(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error("Error processing message:", error);
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });
+  } finally {
+    await releaseCustomerLock(incomingMsg.from);
   }
 }
 
