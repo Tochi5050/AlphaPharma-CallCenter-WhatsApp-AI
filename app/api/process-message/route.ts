@@ -136,7 +136,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
       if (engaged) {
         console.log(
-          "Pharmacist actively engaged, staying silent:",
+          "Pharmacist actively engaged, staying silent -",
           incomingMsg.from,
         );
         await markMessageFullyProcessed(incomingMsg.messageId);
