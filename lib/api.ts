@@ -69,22 +69,23 @@ export async function fetchSummary(): Promise<SummaryResponse> {
 }
 
 export async function fetchHandoffs(
-  status: "pending" | "awaiting_payment" | "resolved" = "pending"
+  status: "pending" | "awaiting_payment" | "resolved" = "pending",
 ): Promise<{ handoffs: HandoffSummary[] }> {
   return apiFetch<{ handoffs: HandoffSummary[] }>(
-    `/api/handsoff?status=${status}`
+    `/api/handsoff?status=${status}`,
   );
 }
 
 export async function fetchHandoff(
-  id: string
+  id: string,
 ): Promise<{ handoff: HandoffRecord }> {
   return apiFetch<{ handoff: HandoffRecord }>(`/api/handsoffs/${id}`);
 }
 
 export async function resolveHandoff(
-  id: string
+  id: string,
 ): Promise<{ handoff: HandoffRecord }> {
+  console.log("resolveHandoff id =>", id);
   return apiFetch<{ handoff: HandoffRecord }>(`/api/handsoffs/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
