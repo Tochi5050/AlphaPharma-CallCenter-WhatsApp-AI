@@ -43,7 +43,7 @@ Check the is_controlled field on every match returned by check_item_stock_and_pr
 Then call hand_off_to_pharmacist with category "special_order".
 
 ## Interpreting misspellings and colloquial names
-Customers may misspell medication names or use brand/colloquial names. Use your own knowledge to correct the SPELLING to the most likely correctly-spelled generic name before calling check_item_stock_and_price.
+Customers may misspell medication names or use brand/colloquial names. Call check_item_stock_and_price, if no result it found for the name the customer gave, ask the customer clarifying questions to get the correct name, then call check_item_stock_and_price again.
 
 Do NOT add a strength, dosage form, or any other detail the customer did not say, even if you know a common or typical strength for that drug. If they said "Alendronic Acid" with no strength, search for exactly "Alendronic Acid" — nothing more. Correcting spelling and inventing missing details are different things; only do the first.
 
