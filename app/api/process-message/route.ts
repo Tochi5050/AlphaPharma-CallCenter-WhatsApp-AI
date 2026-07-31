@@ -213,6 +213,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = [];
 
       for (const toolUse of toolUseBlocks) {
+        console.log("toolUse.input =>", toolUse.input);
         const result = await executeErpTool(
           toolUse.name,
           toolUse.input as Record<string, unknown>,

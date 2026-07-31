@@ -46,6 +46,12 @@ export async function executeErpTool(
 ): Promise<ErpToolResult> {
   if (toolName === "check_item_stock_and_price") {
     const input = toolInput as CheckItemStockAndPriceInput;
+    console.log(
+      "input.item_name =>",
+      input.item_name,
+      "input.requested_uom =>",
+      input.requested_uom,
+    );
     const result = await checkItemStockAndPrice(
       input.item_name,
       input.requested_uom,
