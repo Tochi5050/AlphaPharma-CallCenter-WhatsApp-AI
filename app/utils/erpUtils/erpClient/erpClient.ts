@@ -1,7 +1,8 @@
 import { normalizeUom } from "../../normalizeUom/normalizeUom";
+import { erpFetch } from "./erpAuth";
 
 const ERP_BASE = "https://alpha.clouderp.one";
-const AUTH_HEADER = `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`;
+//const AUTH_HEADER = `token ${process.env.ERP_API_KEY}:${process.env.ERP_API_SECRET}`;
 const WAREHOUSE = "Adeniyi Jones - APS";
 const PRICE_LIST = "Standard Selling";
 const DISCOUNT_ELIGIBLE_GROUP = "Medicines & Pharmaceuticals";
@@ -66,7 +67,8 @@ export async function lookupCustomerByPhone(
   url.searchParams.set("limit_page_length", "1");
 
   try {
-    const res = await fetch(url, { headers: { Authorization: AUTH_HEADER } });
+    //const res = await fetch(url, { headers: { Authorization: AUTH_HEADER } });
+    const res = await erpFetch(url.toString());
     const data = await res.json();
     const record = data.data?.[0];
     return {
@@ -77,6 +79,14 @@ export async function lookupCustomerByPhone(
     console.error("Customer lookup failed:", err);
     return { discountPercentage: 0 };
   }
+}
+
+interface ErpItemSearchResult {
+  name: string;
+  item_code: string;
+  item_name: string;
+  stock_uom: string;
+  item_group: string;
 }
 
 interface ErpItemSearchResult {
@@ -108,11 +118,24 @@ export async function checkItemStockAndPrice(
   );
   searchUrl.searchParams.set("limit_page_length", "30");
 
-  const searchRes = await fetch(searchUrl, {
-    headers: { Authorization: AUTH_HEADER },
-  });
-  const searchData: { data?: ErpItemSearchResult[] } = await searchRes.json();
-
+  // const searchRes = await fetch(searchUrl, {
+  //   headers: { Authorization: AUTH_HEADER },
+  // });
+  const searchRes = await erpFetch(searchUrl.toString());
+  const searchData: {
+    data?: ErpItemSearchResult[];
+    exc_type?: string;
+    exception?: string;
+  } = await searchRes.json();
+  if (searchData.exc_type || searchData.exception) {
+    console.error(
+      `[ERP AUTH/SYSTEM ERROR] "${itemName}" ->`,
+      JSON.stringify(searchData),
+    );
+    throw new Error(
+      `ERP request failed: ${searchData.exc_type ?? "unknown error"}`,
+    );
+  }
   console.log(
     `[ERP SEARCH] "${itemName}" ->`,
     JSON.stringify(searchData.data ?? searchData),
@@ -151,62 +174,75 @@ export async function checkItemStockAndPrice(
         stockUrl.searchParams.set("item_code", item.item_code);
         stockUrl.searchParams.set("warehouse", WAREHOUSE);
 
-        const [priceRes, fullItemRes, stockRes] = await Promise.all([
-          fetch(priceUrl, { headers: { Authorization: AUTH_HEADER } }),
-          fetch(fullItemUrl, { headers: { Authorization: AUTH_HEADER } }),
-          fetch(stockUrl, { headers: { Authorization: AUTH_HEADER } }),
-        ]);
+        // const [priceRes, fullItemRes, stockRes] = await Promise.all([
+        //   fetch(priceUrl, { headers: { Authorization: AUTH_HEADER } }),
+        //   fetch(fullItemUrl, { headers: { Authorization: AUTH_HEADER } }),
+        //   fetch(stockUrl, { headers: { Authorization: AUTH_HEADER } }),
+        // ]);
+        try {
+          const [priceRes, fullItemRes, stockRes] = await Promise.all([
+            erpFetch(priceUrl.toString()),
+            erpFetch(fullItemUrl),
+            erpFetch(stockUrl.toString()),
+          ]);
 
-        const priceData: { data?: Array<{ price_list_rate: number }> } =
-          await priceRes.json();
-        const fullItem: {
-          data?: { uoms?: Array<{ uom: string; conversion_factor: number }> };
-        } = await fullItemRes.json();
-        const stockData: { message?: number } = await stockRes.json();
+          const priceData: { data?: Array<{ price_list_rate: number }> } =
+            await priceRes.json();
+          const fullItem: {
+            data?: { uoms?: Array<{ uom: string; conversion_factor: number }> };
+          } = await fullItemRes.json();
+          const stockData: { message?: number } = await stockRes.json();
 
-        const baseRate = priceData.data?.[0]?.price_list_rate;
+          const baseRate = priceData.data?.[0]?.price_list_rate;
 
-        console.log(
-          `[ERP PRICE] ${item.item_code} (uom: ${baseUom}) ->`,
-          JSON.stringify(priceData.data ?? priceData),
-        );
-
-        if (baseRate === undefined) {
           console.log(
-            `[ERP SKIP] ${item.item_code} skipped - no matching Item Price entry`,
+            `[ERP PRICE] ${item.item_code} (uom: ${baseUom}) ->`,
+            JSON.stringify(priceData.data ?? priceData),
+          );
+
+          if (baseRate === undefined) {
+            console.log(
+              `[ERP SKIP] ${item.item_code} skipped - no matching Item Price entry`,
+            );
+            return null;
+          }
+
+          const uomTable: Array<{ uom: string; conversion_factor: number }> =
+            fullItem.data?.uoms ?? [];
+
+          let finalUom = baseUom;
+          let quantityMultiplier = 1;
+
+          if (requestedUom) {
+            const candidates = normalizeUom(requestedUom);
+            const match = uomTable.find((u) =>
+              candidates.includes(u.uom.toLowerCase()),
+            );
+            if (match) {
+              finalUom = match.uom;
+              quantityMultiplier = match.conversion_factor;
+            }
+          }
+
+          return {
+            item_name: item.item_name,
+            item_code: item.item_code,
+            uom: finalUom,
+            price: baseRate * quantityMultiplier,
+            base_price: baseRate,
+            base_uom: baseUom,
+            available_uoms: uomTable.map((u) => u.uom),
+            stock_qty: stockData.message ?? 0,
+            is_medicine: DISCOUNT_ELIGIBLE_GROUPS.includes(item.item_group),
+            is_controlled: item.item_group === CONTROLLED_SUBSTANCE_GROUP,
+          };
+        } catch (err) {
+          console.error(
+            `[ERP ERROR] ${item.item_code} failed unexpectedly:`,
+            err,
           );
           return null;
         }
-
-        const uomTable: Array<{ uom: string; conversion_factor: number }> =
-          fullItem.data?.uoms ?? [];
-
-        let finalUom = baseUom;
-        let quantityMultiplier = 1;
-
-        if (requestedUom) {
-          const candidates = normalizeUom(requestedUom);
-          const match = uomTable.find((u) =>
-            candidates.includes(u.uom.toLowerCase()),
-          );
-          if (match) {
-            finalUom = match.uom;
-            quantityMultiplier = match.conversion_factor;
-          }
-        }
-
-        return {
-          item_name: item.item_name,
-          item_code: item.item_code,
-          uom: finalUom,
-          price: baseRate * quantityMultiplier,
-          base_price: baseRate,
-          base_uom: baseUom,
-          available_uoms: uomTable.map((u) => u.uom),
-          stock_qty: stockData.message ?? 0,
-          is_medicine: DISCOUNT_ELIGIBLE_GROUPS.includes(item.item_group),
-          is_controlled: item.item_group === CONTROLLED_SUBSTANCE_GROUP,
-        };
       },
     ),
   );
