@@ -37,7 +37,13 @@ type RecordPendingOrderInput = {
 
 type HandOffResult = { handedOff: true; handoffId: string };
 type RecordOrderResult = { recorded: true };
-type ErpToolResult = ItemLookupResult | HandOffResult | RecordOrderResult;
+type ErpToolResult =
+  | ItemLookupResult
+  | HandOffResult
+  | RecordOrderResult
+  | { flagged: true };
+const UNAVAILABLE_REPLY =
+  "The requested medication is not available at the moment. Kindly give us a few hours while we get back to you on how soon we can make it available. We will get back to you shortly.";
 
 export async function executeErpTool(
   toolName: string,
@@ -96,6 +102,7 @@ export async function executeErpTool(
       category: input.category,
       reason: input.reason,
       conversationSnapshot: context.history,
+      silencesAi: true,
     });
 
     console.log("[HANDOFF] record created:", handoffRecord.id);
@@ -127,6 +134,36 @@ export async function executeErpTool(
       createdAt: Date.now(),
     });
     return { recorded: true };
+  }
+
+  if (toolName === "flag_unavailable_item") {
+    const input = toolInput as { item_name: string };
+    const customer = await lookupCustomerByPhone(context.waId);
+
+    const handoffRecord = await createHandoff({
+      waId: context.waId,
+      customerName: customer.customerName,
+      category: "special_order",
+      reason: `Customer requested "${input.item_name}" — not currently in stock, needs sourcing.`,
+      conversationSnapshot: context.history,
+      silencesAi: false, // NEW — the whole point of this tool
+    });
+
+    const canGreet = await isFirstReply(context.waId);
+    await sendWhatsAppReply(
+      context.waId,
+      canGreet
+        ? withGreeting(UNAVAILABLE_REPLY, customer.customerName)
+        : UNAVAILABLE_REPLY,
+    );
+    await appendMessage(context.waId, {
+      role: "assistant",
+      content: `[Flagged unavailable item for sourcing: ${input.item_name}]`,
+    });
+    await markReplied(context.waId);
+
+    // deliberately NOT setting handoffTriggered upstream — see route change below
+    return { flagged: true, handoffId: handoffRecord.id };
   }
 
   throw new Error(`Unknown tool: ${toolName}`);

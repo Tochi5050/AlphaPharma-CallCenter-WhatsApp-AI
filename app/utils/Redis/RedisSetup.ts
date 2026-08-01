@@ -20,6 +20,7 @@ export type HandoffRecord = {
   timestamp: number;
   status: "pending" | "resolved";
   resolvedAt?: number;
+  silencesAi: boolean;
 };
 
 export type PendingOrderItem = {
@@ -103,6 +104,20 @@ export async function createHandoff(
   await redis.sadd(customerHandoffsKey(record.waId), record.id);
 
   return record;
+}
+
+export async function getSilencingPendingHandoffsForCustomer(
+  waId: string,
+): Promise<HandoffRecord[]> {
+  const ids = await redis.smembers(customerHandoffsKey(waId));
+  if (!ids || ids.length === 0) return [];
+  const records = await Promise.all(
+    ids.map((id) => redis.get<HandoffRecord>(handoffKey(id))),
+  );
+  return records.filter(
+    (r): r is HandoffRecord =>
+      r !== null && r.status === "pending" && r.silencesAi === true,
+  );
 }
 
 export async function resolveHandoff(

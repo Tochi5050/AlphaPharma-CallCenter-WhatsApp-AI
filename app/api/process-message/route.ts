@@ -24,6 +24,7 @@ import {
   isPharmacistEngaged,
   acquireCustomerLock,
   releaseCustomerLock,
+  getSilencingPendingHandoffsForCustomer,
 } from "@/app/utils/Redis/RedisSetup";
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
@@ -118,6 +119,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         mediaType,
         originalText: incomingMsg.caption,
         conversationSnapshot: history,
+        silencesAi: true,
       });
 
       console.log("handOff =>", handoffRecord);
@@ -149,7 +151,10 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       content: incomingMsg.text!,
     });
 
-    const pending = await getPendingHandoffsForCustomer(incomingMsg.from);
+    //const pending = await getPendingHandoffsForCustomer(incomingMsg.from);
+    const pending = await getSilencingPendingHandoffsForCustomer(
+      incomingMsg.from,
+    ); // was getPendingHandoffsForCustomer
 
     if (pending.length > 0) {
       const engaged = await isPharmacistEngaged(incomingMsg.from);
@@ -289,6 +294,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         category: "other",
         reason: `AI response was empty or incomplete (stop_reason: ${response.stop_reason})`,
         conversationSnapshot: conversationSnapshot,
+        silencesAi: false,
       });
       const canGreet = await isFirstReply(incomingMsg.from);
       const fallbackText =

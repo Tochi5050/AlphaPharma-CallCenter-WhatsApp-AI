@@ -13,7 +13,7 @@ export async function resolveAndStoreMedia(
   mediaId: string,
 ): Promise<ResolvedMedia> {
   // Step 1: get metadata + a short-lived lookaside URL
-  const metaRes = await fetch(`${D360_BASE_URL}/v1/media/${mediaId}`, {
+  const metaRes = await fetch(`${D360_BASE_URL}/${mediaId}`, {
     headers: { "D360-API-KEY": process.env.D360_API_KEY! },
   });
   if (!metaRes.ok) {

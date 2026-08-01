@@ -50,6 +50,21 @@ export const erpTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "flag_unavailable_item",
+    description:
+      "Flags a specific out-of-stock item for a pharmacist to review and source, WITHOUT pausing the rest of the conversation. Use this whenever check_item_stock_and_price returns found: false, or every match has zero stock. This does not stop you from continuing to help the customer with anything else, including other items in the same or later messages.",
+    input_schema: {
+      type: "object",
+      properties: {
+        item_name: {
+          type: "string",
+          description: "The item the customer asked about that is unavailable",
+        },
+      },
+      required: ["item_name"],
+    },
+  },
+  {
     name: "record_pending_order",
     description:
       "Call this exactly once, right after the customer has confirmed they want to proceed with a specific order, and only after you have already told them the order total and payment details in your reply. Do not call this before they've explicitly agreed to proceed.",
