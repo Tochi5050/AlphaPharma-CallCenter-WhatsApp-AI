@@ -52,7 +52,7 @@ export const erpTools: Anthropic.Tool[] = [
   {
     name: "flag_unavailable_item",
     description:
-      "Flags a specific out-of-stock item for a pharmacist to review and source, WITHOUT pausing the rest of the conversation. Use this whenever check_item_stock_and_price returns found: false, or every match has zero stock. This does not stop you from continuing to help the customer with anything else, including other items in the same or later messages.",
+      "Flags a specific out-of-stock item for a pharmacist to review and source, WITHOUT pausing the rest of the conversation. Use this whenever check_item_stock_and_price returns found: false, or every match has zero stock. After calling this tool, you must tell the customer yourself, in your own natural words, that the item isn't currently available and has been flagged for sourcing — this tool does not send anything to the customer on its own. Continue helping with anything else in the same message if relevant.",
     input_schema: {
       type: "object",
       properties: {

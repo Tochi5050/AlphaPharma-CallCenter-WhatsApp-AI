@@ -149,20 +149,20 @@ export async function executeErpTool(
       silencesAi: false, // NEW — the whole point of this tool
     });
 
-    const canGreet = await isFirstReply(context.waId);
-    await sendWhatsAppReply(
-      context.waId,
-      canGreet
-        ? withGreeting(UNAVAILABLE_REPLY, customer.customerName)
-        : UNAVAILABLE_REPLY,
-    );
-    await appendMessage(context.waId, {
-      role: "assistant",
-      content: `[Flagged unavailable item for sourcing: ${input.item_name}]`,
-    });
-    await markReplied(context.waId);
+    // const canGreet = await isFirstReply(context.waId);
+    // await sendWhatsAppReply(
+    //   context.waId,
+    //   canGreet
+    //     ? withGreeting(UNAVAILABLE_REPLY, customer.customerName)
+    //     : UNAVAILABLE_REPLY,
+    // );
+    // await appendMessage(context.waId, {
+    //   role: "assistant",
+    //   content: `[Flagged unavailable item for sourcing: ${input.item_name}]`,
+    // });
+    // await markReplied(context.waId);
 
-    // deliberately NOT setting handoffTriggered upstream — see route change below
+    // // deliberately NOT setting handoffTriggered upstream — see route change below
     return { flagged: true, handoffId: handoffRecord.id };
   }
 
