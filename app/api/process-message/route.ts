@@ -87,6 +87,43 @@ async function handler(request: NextRequest): Promise<NextResponse> {
   try {
     if (incomingMsg.category === "handoff") {
       console.log("incomingMsg-bottom=>", incomingMsg);
+
+      const silencingPending = await getSilencingPendingHandoffsForCustomer(
+        incomingMsg.from,
+      );
+      const engaged =
+        silencingPending.length > 0
+          ? await isPharmacistEngaged(incomingMsg.from)
+          : false;
+
+      if (engaged) {
+        console.log(
+          "Pharmacist actively engaged, logging media silently:",
+          incomingMsg.from,
+        );
+
+        let engagedMediaUrl: string | undefined;
+        try {
+          const resolved = await resolveAndStoreMedia(incomingMsg.mediaId!);
+          engagedMediaUrl = resolved.mediaUrl;
+        } catch (err) {
+          console.error("Failed to resolve media during engaged silence:", err);
+        }
+
+        await appendMessage(incomingMsg.from, {
+          role: "user",
+          content: engagedMediaUrl
+            ? `[Customer sent an image: ${engagedMediaUrl}]`
+            : `[Customer sent a ${incomingMsg.type}]`,
+        });
+
+        await markMessageFullyProcessed(incomingMsg.messageId);
+        return NextResponse.json(
+          { message: "Logged silently, pharmacist engaged" },
+          { status: 200 },
+        );
+      }
+
       const history = await getHistory(incomingMsg.from);
       const customer = await lookupCustomerByPhone(incomingMsg.from);
       const pendingOrder = await getAndClearAwaitingPayment(incomingMsg.from);
