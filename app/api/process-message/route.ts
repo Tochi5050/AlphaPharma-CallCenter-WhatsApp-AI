@@ -112,7 +112,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
           ? `Payment proof received for order totaling ₦${pendingOrder.total}. Items: ${pendingOrder.items
               .map((i) => `${i.qty} ${i.uom} ${i.item_name}`)
               .join(", ")}`
-          : `Received unsupported message type: ${incomingMsg.type}`,
+          : `Message contains ${incomingMsg.type}`,
         orderDetails: pendingOrder ?? undefined,
         mediaId: incomingMsg.mediaId,
         mediaUrl,
