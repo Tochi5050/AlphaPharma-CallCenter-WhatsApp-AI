@@ -123,14 +123,25 @@ export async function executeErpTool(
     const replyText =
       HANDOFF_REPLIES[input.category] ?? HANDOFF_REPLIES.default;
 
-    await sendWhatsAppReply(
+    // await sendWhatsAppReply(
+    //   context.waId,
+    //   canGreet ? withGreeting(replyText, customer.customerName) : replyText,
+    // );
+    // await appendMessage(context.waId, {
+    //   role: "assistant",
+    //   content: `[Escalated to pharmacist — category: ${input.category}. Reason: ${input.reason}]`,
+    // });
+
+    const sentId = await sendWhatsAppReply(
       context.waId,
       canGreet ? withGreeting(replyText, customer.customerName) : replyText,
     );
     await appendMessage(context.waId, {
       role: "assistant",
       content: `[Escalated to pharmacist — category: ${input.category}. Reason: ${input.reason}]`,
+      messageId: sentId,
     });
+
     await markReplied(context.waId);
 
     console.log("[HANDOFF] reply sent to customer");

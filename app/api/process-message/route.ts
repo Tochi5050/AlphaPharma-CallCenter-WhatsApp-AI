@@ -167,7 +167,18 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         ? "Awaiting pharmacist's confirmation of your payment..."
         : "Just give me a minute while I connect you with one of our pharmacists.";
 
-      await sendWhatsAppReply(
+      // await sendWhatsAppReply(
+      //   incomingMsg.from,
+      //   canGreet ? withGreeting(replyText, customer.customerName) : replyText,
+      // );
+      // await appendMessage(incomingMsg.from, {
+      //   role: "assistant",
+      //   content: pendingOrder
+      //     ? "[Payment proof received — escalated to pharmacist for confirmation]"
+      //     : `[Escalated to pharmacist — media received: ${incomingMsg.type}]`,
+      // });
+
+      const handoffSentId = await sendWhatsAppReply(
         incomingMsg.from,
         canGreet ? withGreeting(replyText, customer.customerName) : replyText,
       );
@@ -176,7 +187,9 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         content: pendingOrder
           ? "[Payment proof received — escalated to pharmacist for confirmation]"
           : `[Escalated to pharmacist — media received: ${incomingMsg.type}]`,
+        messageId: handoffSentId,
       });
+
       await markReplied(incomingMsg.from);
       await markMessageFullyProcessed(incomingMsg.messageId);
 
@@ -313,12 +326,12 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     );
     const finalText = stripGreetingOpeners(finalTextBlock?.text ?? "");
     console.log("[FINAL TEXT]", finalText.slice(0, 100));
-    if (finalText) {
-      await appendMessage(incomingMsg.from, {
-        role: "assistant",
-        content: finalText,
-      });
-    }
+    // if (finalText) {
+    //   await appendMessage(incomingMsg.from, {
+    //     role: "assistant",
+    //     content: finalText,
+    //   });
+    // }
 
     if (finalText) {
       const customer = await lookupCustomerByPhone(incomingMsg.from);
@@ -329,10 +342,16 @@ async function handler(request: NextRequest): Promise<NextResponse> {
         "text length:",
         finalText.length,
       );
-      await sendWhatsAppReply(
+      const sentId = await sendWhatsAppReply(
         incomingMsg.from,
         canGreet ? withGreeting(finalText, customer.customerName) : finalText,
       );
+
+      await appendMessage(incomingMsg.from, {
+        role: "assistant",
+        content: finalText,
+        messageId: sentId,
+      });
 
       await markReplied(incomingMsg.from);
     } else if (!handoffTriggered) {

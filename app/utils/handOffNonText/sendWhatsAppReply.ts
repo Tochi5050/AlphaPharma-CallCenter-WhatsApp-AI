@@ -3,7 +3,7 @@ const D360_BASE_URL = "https://waba-v2.360dialog.io"; // switch to waba-sandbox.
 export async function sendWhatsAppReply(
   to: string,
   text: string,
-): Promise<void> {
+): Promise<string | undefined> {
   const res = await fetch(`${D360_BASE_URL}/messages`, {
     method: "POST",
     headers: {
@@ -24,4 +24,7 @@ export async function sendWhatsAppReply(
     console.error("Failed to send WhatsApp reply:", res.status, errBody);
     throw new Error(`WhatsApp send failed: ${res.status}`);
   }
+
+  const data = await res.json();
+  return data.messages?.[0]?.id;
 }
