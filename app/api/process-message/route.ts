@@ -187,7 +187,7 @@ async function handler(request: NextRequest): Promise<NextResponse> {
 
     let textForClaude = incomingMsg.text!;
     if (incomingMsg.quotedMessageId) {
-      const quotedText = findMessageById(incomingMsg.quotedMessageId);
+      const quotedText = await findMessageById(incomingMsg.quotedMessageId);
       textForClaude = quotedText
         ? `[Replying to earlier message: "${quotedText}"]\n${incomingMsg.text}`
         : `[Customer is replying to an earlier message we don't have a record of]\n${incomingMsg.text}`;
@@ -199,10 +199,10 @@ async function handler(request: NextRequest): Promise<NextResponse> {
       messageId: incomingMsg.messageId,
     });
 
-    await appendMessage(incomingMsg.from, {
-      role: "user",
-      content: incomingMsg.text!,
-    });
+    // await appendMessage(incomingMsg.from, {
+    //   role: "user",
+    //   content: incomingMsg.text!,
+    // });
 
     //const pending = await getPendingHandoffsForCustomer(incomingMsg.from);
     const pending = await getSilencingPendingHandoffsForCustomer(

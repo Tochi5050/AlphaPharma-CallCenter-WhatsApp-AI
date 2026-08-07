@@ -106,15 +106,26 @@ async function searchWithSpacingVariants(
 ): Promise<ErpItemSearchResult[]> {
   const spaced = itemName.replace(/(\d)(mg|mcg|ml|g)\b/gi, "$1 $2");
   const unspaced = normalizeStrengthSpacing(itemName);
+  const allSpacesRemoved = itemName.replace(/\s+/g, "");
 
-  const variants = [...new Set([itemName, spaced, unspaced])];
+  const variants = [...new Set([itemName, spaced, unspaced, allSpacesRemoved])];
 
-  const results = await Promise.all(
-    variants.map(async (variant) => {
+  const directResults = await Promise.all(
+    variants.map((v) => searchOneVariant(v)),
+  );
+  const seen = new Map<string, ErpItemSearchResult>();
+  for (const list of directResults)
+    for (const item of list) seen.set(item.item_code, item);
+
+  // Fallback: if nothing found, try a word-AND search — each word must appear
+  // somewhere in item_name, regardless of spacing/adjacency between them
+  if (seen.size === 0) {
+    const words = itemName.split(/\s+/).filter((w) => w.length > 2); // skip trivial short words
+    if (words.length > 1) {
       const url = new URL(`${ERP_BASE}/api/resource/Item`);
       url.searchParams.set(
         "filters",
-        JSON.stringify([["item_name", "like", `%${variant}%`]]),
+        JSON.stringify(words.map((w) => ["item_name", "like", `%${w}%`])),
       );
       url.searchParams.set(
         "fields",
@@ -127,35 +138,49 @@ async function searchWithSpacingVariants(
         ]),
       );
       url.searchParams.set("limit_page_length", "30");
-
       const res = await erpFetch(url.toString());
-      const data: {
-        data?: ErpItemSearchResult[];
-        exc_type?: string;
-        exception?: string;
-      } = await res.json();
-
-      if (data.exc_type || data.exception) {
-        console.error(
-          `[ERP AUTH/SYSTEM ERROR] variant "${variant}" ->`,
-          JSON.stringify(data),
-        );
-        throw new Error(
-          `ERP request failed: ${data.exc_type ?? "unknown error"}`,
-        );
-      }
-
-      return data.data ?? [];
-    }),
-  );
-
-  const seen = new Map<string, ErpItemSearchResult>();
-  for (const list of results) {
-    for (const item of list) seen.set(item.item_code, item);
+      const data = await res.json();
+      for (const item of data.data ?? []) seen.set(item.item_code, item);
+    }
   }
+
   return Array.from(seen.values());
 }
 
+async function searchOneVariant(
+  variant: string,
+): Promise<ErpItemSearchResult[]> {
+  const url = new URL(`${ERP_BASE}/api/resource/Item`);
+  url.searchParams.set(
+    "filters",
+    JSON.stringify([["item_name", "like", `%${variant}%`]]),
+  );
+  url.searchParams.set(
+    "fields",
+    JSON.stringify([
+      "name",
+      "item_code",
+      "item_name",
+      "stock_uom",
+      "item_group",
+    ]),
+  );
+  url.searchParams.set("limit_page_length", "30");
+  const res = await erpFetch(url.toString());
+  const data: {
+    data?: ErpItemSearchResult[];
+    exc_type?: string;
+    exception?: string;
+  } = await res.json();
+  if (data.exc_type || data.exception) {
+    console.error(
+      `[ERP AUTH/SYSTEM ERROR] variant "${variant}" ->`,
+      JSON.stringify(data),
+    );
+    throw new Error(`ERP request failed: ${data.exc_type ?? "unknown error"}`);
+  }
+  return data.data ?? [];
+}
 export async function checkItemStockAndPrice(
   itemName: string,
   requestedUom?: string,
