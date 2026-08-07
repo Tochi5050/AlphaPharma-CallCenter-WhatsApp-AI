@@ -65,6 +65,27 @@ export const erpTools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "flag_prescription_format",
+    description:
+      "Flags a specific drug request for pharmacist review because the customer phrased it with prescription-style dosing instructions (e.g. 'TDS', 'BD', 'OD', 'for 5 days', 'PO', 'stat'), rather than a plain availability or purchase request. This does NOT pause the rest of the conversation — continue helping with any other items or questions in the same or later messages normally. Only the specific flagged item needs pharmacist review.",
+    input_schema: {
+      type: "object",
+      properties: {
+        item_name: {
+          type: "string",
+          description:
+            "The medication the prescription-style request was about",
+        },
+        prescription_text: {
+          type: "string",
+          description:
+            "The exact phrasing the customer used that resembled a prescription",
+        },
+      },
+      required: ["item_name", "prescription_text"],
+    },
+  },
+  {
     name: "record_pending_order",
     description:
       "Call this exactly once, right after the customer has confirmed they want to proceed with a specific order, and only after you have already told them the order total and payment details in your reply. Do not call this before they've explicitly agreed to proceed.",

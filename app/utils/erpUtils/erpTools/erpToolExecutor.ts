@@ -84,15 +84,27 @@ export async function executeErpTool(
   }
 
   const HANDOFF_REPLIES: Record<string, string> = {
-    special_order:
-      "The requested medication is not available at the moment. Kindly give us a few hours while we get back to you on how soon we can make it available. We will get back to you shortly.",
     default:
       "Just give me a minute while I connect you with one of our pharmacists.",
   };
 
+  const VALID_HANDOFF_CATEGORIES = [
+    "clinical_question",
+    "refund_request",
+    "drug_interaction",
+    "controlled_substance",
+    "other",
+  ];
+
   if (toolName === "hand_off_to_pharmacist") {
     const input = toolInput as HandOffToolInput;
     console.log("[HANDOFF] Claude triggered hand-off:", JSON.stringify(input));
+
+    if (!VALID_HANDOFF_CATEGORIES.includes(input.category)) {
+      console.error(
+        `[HANDOFF] Unexpected category from Claude: "${input.category}" - falling back to default reply`,
+      );
+    }
 
     const customer = await lookupCustomerByPhone(context.waId);
 
@@ -124,6 +136,22 @@ export async function executeErpTool(
     console.log("[HANDOFF] reply sent to customer");
 
     return { handedOff: true, handoffId: handoffRecord.id };
+  }
+
+  if (toolName === "flag_prescription_format") {
+    const input = toolInput as { item_name: string; prescription_text: string };
+    const customer = await lookupCustomerByPhone(context.waId);
+
+    const handoffRecord = await createHandoff({
+      waId: context.waId,
+      customerName: customer.customerName,
+      category: "prescription_review",
+      reason: `Customer requested "${input.item_name}" with prescription-style instructions: "${input.prescription_text}" — needs pharmacist review before fulfillment.`,
+      conversationSnapshot: context.history,
+      silencesAi: false,
+    });
+
+    return { flagged: true, handoffId: handoffRecord.id };
   }
 
   if (toolName === "record_pending_order") {

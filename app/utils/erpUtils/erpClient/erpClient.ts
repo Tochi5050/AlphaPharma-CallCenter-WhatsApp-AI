@@ -97,56 +97,123 @@ interface ErpItemSearchResult {
   item_group: string;
 }
 
+function normalizeStrengthSpacing(text: string): string {
+  return text.replace(/(\d)\s+(mg|mcg|ml|g)\b/gi, "$1$2");
+}
+
+async function searchWithSpacingVariants(
+  itemName: string,
+): Promise<ErpItemSearchResult[]> {
+  const spaced = itemName.replace(/(\d)(mg|mcg|ml|g)\b/gi, "$1 $2");
+  const unspaced = normalizeStrengthSpacing(itemName);
+
+  const variants = [...new Set([itemName, spaced, unspaced])];
+
+  const results = await Promise.all(
+    variants.map(async (variant) => {
+      const url = new URL(`${ERP_BASE}/api/resource/Item`);
+      url.searchParams.set(
+        "filters",
+        JSON.stringify([["item_name", "like", `%${variant}%`]]),
+      );
+      url.searchParams.set(
+        "fields",
+        JSON.stringify([
+          "name",
+          "item_code",
+          "item_name",
+          "stock_uom",
+          "item_group",
+        ]),
+      );
+      url.searchParams.set("limit_page_length", "30");
+
+      const res = await erpFetch(url.toString());
+      const data: {
+        data?: ErpItemSearchResult[];
+        exc_type?: string;
+        exception?: string;
+      } = await res.json();
+
+      if (data.exc_type || data.exception) {
+        console.error(
+          `[ERP AUTH/SYSTEM ERROR] variant "${variant}" ->`,
+          JSON.stringify(data),
+        );
+        throw new Error(
+          `ERP request failed: ${data.exc_type ?? "unknown error"}`,
+        );
+      }
+
+      return data.data ?? [];
+    }),
+  );
+
+  const seen = new Map<string, ErpItemSearchResult>();
+  for (const list of results) {
+    for (const item of list) seen.set(item.item_code, item);
+  }
+  return Array.from(seen.values());
+}
+
 export async function checkItemStockAndPrice(
   itemName: string,
   requestedUom?: string,
 ): Promise<ItemLookupResult> {
-  const searchUrl = new URL(`${ERP_BASE}/api/resource/Item`);
-  searchUrl.searchParams.set(
-    "filters",
-    JSON.stringify([["item_name", "like", `%${itemName}%`]]),
-  );
-  searchUrl.searchParams.set(
-    "fields",
-    JSON.stringify([
-      "name",
-      "item_code",
-      "item_name",
-      "stock_uom",
-      "item_group",
-    ]),
-  );
-  searchUrl.searchParams.set("limit_page_length", "30");
+  // const searchUrl = new URL(`${ERP_BASE}/api/resource/Item`);
+  // searchUrl.searchParams.set(
+  //   "filters",
+  //   JSON.stringify([["item_name", "like", `%${itemName}%`]]),
+  // );
+  // searchUrl.searchParams.set(
+  //   "fields",
+  //   JSON.stringify([
+  //     "name",
+  //     "item_code",
+  //     "item_name",
+  //     "stock_uom",
+  //     "item_group",
+  //   ]),
+  // );
+  // searchUrl.searchParams.set("limit_page_length", "30");
 
-  // const searchRes = await fetch(searchUrl, {
-  //   headers: { Authorization: AUTH_HEADER },
-  // });
-  const searchRes = await erpFetch(searchUrl.toString());
-  const searchData: {
-    data?: ErpItemSearchResult[];
-    exc_type?: string;
-    exception?: string;
-  } = await searchRes.json();
-  if (searchData.exc_type || searchData.exception) {
-    console.error(
-      `[ERP AUTH/SYSTEM ERROR] "${itemName}" ->`,
-      JSON.stringify(searchData),
-    );
-    throw new Error(
-      `ERP request failed: ${searchData.exc_type ?? "unknown error"}`,
-    );
-  }
-  console.log(
-    `[ERP SEARCH] "${itemName}" ->`,
-    JSON.stringify(searchData.data ?? searchData),
-  );
+  // // const searchRes = await fetch(searchUrl, {
+  // //   headers: { Authorization: AUTH_HEADER },
+  // // });
+  // const searchRes = await erpFetch(searchUrl.toString());
+  // const searchData: {
+  //   data?: ErpItemSearchResult[];
+  //   exc_type?: string;
+  //   exception?: string;
+  // } = await searchRes.json();
+  // if (searchData.exc_type || searchData.exception) {
+  //   console.error(
+  //     `[ERP AUTH/SYSTEM ERROR] "${itemName}" ->`,
+  //     JSON.stringify(searchData),
+  //   );
+  //   throw new Error(
+  //     `ERP request failed: ${searchData.exc_type ?? "unknown error"}`,
+  //   );
+  // }
+  // console.log(
+  //   `[ERP SEARCH] "${itemName}" ->`,
+  //   JSON.stringify(searchData.data ?? searchData),
+  // );
 
-  if (!searchData.data || searchData.data.length === 0) {
+  // if (!searchData.data || searchData.data.length === 0) {
+  //   return { found: false, message: `No item matching "${itemName}" found.` };
+  // }
+
+  const searchResults = await searchWithSpacingVariants(itemName);
+
+  console.log(`[ERP SEARCH] "${itemName}" ->`, JSON.stringify(searchResults));
+
+  if (searchResults.length === 0) {
     return { found: false, message: `No item matching "${itemName}" found.` };
   }
 
   const results = await Promise.all(
-    searchData.data.map(
+    searchResults.map(
       async (item: ErpItemSearchResult): Promise<ItemBrandMatch | null> => {
         const baseUom = item.stock_uom;
 
