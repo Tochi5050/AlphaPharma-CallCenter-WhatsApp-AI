@@ -34,6 +34,9 @@ export type msgObj = {
             caption?: string;
           };
           type: string;
+          context?: {
+            id: string;
+          };
           timestamp: string;
           from_user_id: string;
         }>;
@@ -71,6 +74,7 @@ export type ParsedMessage = {
   mediaId?: string;
   mediaMimeType?: string;
   caption?: string;
+  quotedMessageId?: string;
 };
 
 export function isPharmacistEcho(
@@ -118,6 +122,7 @@ export function parseIncomingMessage(
     messageId: message.id,
     type: message.type,
     category: classifyType(message.type),
+    quotedMessageId: message.context?.id,
   };
 
   if (message.type === "text") {

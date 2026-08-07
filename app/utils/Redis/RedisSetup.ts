@@ -185,6 +185,11 @@ export function getOldestPendingHandoff(
 
 const HISTORY_LIMIT = 20;
 const TTL_SECONDS = 60 * 60 * 24 * 3;
+const MESSAGE_LOOKUP_TTL_SECONDS = TTL_SECONDS; // same 3-day window as conversation history
+
+function messageByIdKey(messageId: string) {
+  return `message_by_id:${messageId}`;
+}
 
 function key(waId: string | number) {
   return `conversation:${waId}`;
@@ -201,13 +206,29 @@ export async function getHistory(
 
 export async function appendMessage(
   waId: string | number,
-  message: { role: string; content: string },
+  message: { role: string; content: string; messageId?: string },
 ) {
   const history = await getHistory(waId);
   history.push(message);
   const trimmed = history.slice(-HISTORY_LIMIT);
   await redis.set(key(waId), trimmed, { ex: TTL_SECONDS });
+
+  if (message.messageId) {
+    await redis.set(messageByIdKey(message.messageId), message, {
+      ex: MESSAGE_LOOKUP_TTL_SECONDS,
+    });
+  }
+
   return trimmed;
+}
+
+export async function findMessageById(
+  messageId: string,
+): Promise<string | undefined> {
+  const record = await redis.get<{ role: string; content: string }>(
+    messageByIdKey(messageId),
+  );
+  return record?.content;
 }
 
 export async function clearHistory(waId: string | number) {

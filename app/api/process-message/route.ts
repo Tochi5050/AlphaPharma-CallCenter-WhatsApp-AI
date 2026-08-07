@@ -25,6 +25,7 @@ import {
   acquireCustomerLock,
   releaseCustomerLock,
   getSilencingPendingHandoffsForCustomer,
+  findMessageById,
 } from "@/app/utils/Redis/RedisSetup";
 import { resolveAndStoreMedia } from "@/app/utils/storeMedia/storeMediaFiles";
 import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
@@ -183,6 +184,21 @@ async function handler(request: NextRequest): Promise<NextResponse> {
     }
 
     // category === "text"
+
+    let textForClaude = incomingMsg.text!;
+    if (incomingMsg.quotedMessageId) {
+      const quotedText = findMessageById(incomingMsg.quotedMessageId);
+      textForClaude = quotedText
+        ? `[Replying to earlier message: "${quotedText}"]\n${incomingMsg.text}`
+        : `[Customer is replying to an earlier message we don't have a record of]\n${incomingMsg.text}`;
+    }
+
+    await appendMessage(incomingMsg.from, {
+      role: "user",
+      content: textForClaude,
+      messageId: incomingMsg.messageId,
+    });
+
     await appendMessage(incomingMsg.from, {
       role: "user",
       content: incomingMsg.text!,
